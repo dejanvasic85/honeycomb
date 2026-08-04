@@ -1,8 +1,10 @@
 # Tooling notes
 
-Researched 2026-08-04. Vite+ is in **beta** and post-dates model training data for
-most LLM assistants — re-verify version numbers with `npm view <pkg> version` before
-trusting anything below if it's been more than a few weeks.
+Researched 2026-08-04, updated 2026-08-05 (switched package manager to pnpm; see
+"How #1 was actually scaffolded" below). Vite+ is in **beta** and post-dates model
+training data for most LLM assistants — re-verify version numbers with
+`npm view <pkg> version` before trusting anything below if it's been more than a
+few weeks.
 
 ---
 
@@ -14,12 +16,12 @@ trusting anything below if it's been more than a few weeks.
 
 Vite+ is a unified toolchain replacing the usual pile of separate tools:
 
-| Replaces | With | Notes |
-|---|---|---|
-| Vite core | `@voidzero-dev/vite-plus-core` | Rolldown-powered, API-compatible with Vite — existing plugins (`@cloudflare/vite-plugin`, `@tanstack/react-start/plugin/vite`, `@vitejs/plugin-react`) still slot into `plugins: []` normally |
-| ESLint | Oxlint | via `vp lint` / `vp check` |
-| Prettier | Oxfmt | via `vp fmt` / `vp check` |
-| Vitest (standalone) | Vitest, re-exported by `vite-plus` | still Vitest under the hood, just version-locked |
+| Replaces            | With                               | Notes                                                                                                                                                                                         |
+| ------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vite core           | `@voidzero-dev/vite-plus-core`     | Rolldown-powered, API-compatible with Vite — existing plugins (`@cloudflare/vite-plugin`, `@tanstack/react-start/plugin/vite`, `@vitejs/plugin-react`) still slot into `plugins: []` normally |
+| ESLint              | Oxlint                             | via `vp lint` / `vp check`                                                                                                                                                                    |
+| Prettier            | Oxfmt                              | via `vp fmt` / `vp check`                                                                                                                                                                     |
+| Vitest (standalone) | Vitest, re-exported by `vite-plus` | still Vitest under the hood, just version-locked                                                                                                                                              |
 
 **Do not install `eslint` or `prettier`.** Config lives in one `vite.config.ts` via
 `defineConfig` from `vite-plus` (not from `vite`).
@@ -27,7 +29,7 @@ Vite+ is a unified toolchain replacing the usual pile of separate tools:
 ### Config shape
 
 ```ts
-import { defineConfig } from 'vite-plus';
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   // standard Vite keys — work as normal
@@ -37,15 +39,15 @@ export default defineConfig({
   preview: {},
 
   // vite-plus-specific keys
-  create: {},          // project/template scaffolding
-  run: {},              // Vite Task runner
-  fmt: {},               // Oxfmt options
-  lint: {},               // Oxlint options
-  check: {},               // `vp check` defaults (lint+fmt+typecheck)
-  test: {},                 // Vitest config
-  pack: {},                  // tsdown bundling (for libraries — not needed here)
-  staged: {},                 // lint-staged-style pre-commit checks
-  defaultPackage: undefined,   // monorepo root target, N/A for us
+  create: {}, // project/template scaffolding
+  run: {}, // Vite Task runner
+  fmt: {}, // Oxfmt options
+  lint: {}, // Oxlint options
+  check: {}, // `vp check` defaults (lint+fmt+typecheck)
+  test: {}, // Vitest config
+  pack: {}, // tsdown bundling (for libraries — not needed here)
+  staged: {}, // lint-staged-style pre-commit checks
+  defaultPackage: undefined, // monorepo root target, N/A for us
 });
 ```
 
@@ -75,19 +77,37 @@ Checked from `vite-plus@0.2.7`'s own `package.json`:
 }
 ```
 
-So the required overrides (npm):
+**This project uses pnpm.** As of pnpm 11.x, `overrides` (and `onlyBuiltDependencies`)
+are **not** read from `package.json`'s `"pnpm"` key anymore — pnpm silently ignores
+them there with a `[WARN] ... no longer read by pnpm` and they must live in
+`pnpm-workspace.yaml` instead (confirmed against https://pnpm.io/settings, which
+now documents `pnpm-workspace.yaml` as the only home for non-auth/registry
+settings). This applies even to a single-package repo with no real workspace —
+`pnpm-workspace.yaml` still gets created just to hold these settings.
 
-```json
-{
-  "overrides": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.2.7",
-    "vitest": "4.1.10"
-  }
-}
+`pnpm-workspace.yaml`:
+
+```yaml
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+overrides:
+  vite: npm:@voidzero-dev/vite-plus-core@0.2.7
 ```
 
-pnpm: same keys under `pnpm.overrides` in `package.json`, or a top-level
-`overrides:` block in `pnpm-workspace.yaml`. Yarn: `resolutions`.
+(`allowBuilds` is what pnpm 11.20 itself scaffolds in response to
+`ERR_PNPM_IGNORED_BUILDS` — run `pnpm approve-builds --all` non-interactively to
+generate/fill it rather than guessing the key name. It replaces the older
+`onlyBuiltDependencies` array from `package.json`'s `"pnpm"` key.)
+
+We didn't add a `vitest` override — nothing pulls in a transitive `vitest` yet
+(no tests exist). Add one to the same `overrides:` block the moment the first
+test lands (M3 #13), pinned to whatever `npm view vite-plus dependencies` shows
+at that time.
+
+For npm instead: `"overrides": { "vite": "npm:@voidzero-dev/vite-plus-core@0.2.7", "vitest": "4.1.10" }`
+at the top level of `package.json`. Yarn: `resolutions`.
 
 **Rule of thumb:** whatever `vitest` version `vite-plus`'s installed
 `package.json` declares (or equivalently what a fresh `vp --version`-driven
@@ -99,13 +119,13 @@ npm view vite-plus dependencies   # shows the exact vitest + vite-plus-core pins
 
 ### Versions at time of writing
 
-| Package | Version |
-|---|---|
-| `vite-plus` | 0.2.7 |
-| `@voidzero-dev/vite-plus-core` | 0.2.7 |
-| `vitest` (pinned by vite-plus) | 4.1.10 |
-| `oxlint` | 1.75.0 |
-| `oxfmt` | 0.60.0 |
+| Package                        | Version |
+| ------------------------------ | ------- |
+| `vite-plus`                    | 0.2.7   |
+| `@voidzero-dev/vite-plus-core` | 0.2.7   |
+| `vitest` (pinned by vite-plus) | 4.1.10  |
+| `oxlint`                       | 1.75.0  |
+| `oxfmt`                        | 0.60.0  |
 
 ---
 
@@ -114,39 +134,40 @@ npm view vite-plus dependencies   # shows the exact vitest + vite-plus-core pins
 Checked live via `npm view <pkg> version` on 2026-08-04 — **re-check before
 scaffolding**, this moves fast:
 
-| Package | Version | Notes |
-|---|---|---|
-| `@tanstack/react-start` | 1.168.35 | Use this, not `@tanstack/start` (that package is stale, last published ~1yr ago) |
-| `@tanstack/react-router` | 1.170.18 | |
-| `wrangler` | 4.118.0 | |
-| `@cloudflare/vite-plugin` | 1.50.0 | |
-| `react` / `react-dom` | 19.2.8 | |
-| `typescript` | 7.0.2 | |
-| `zod` | 4.4.3 | |
-| `@anthropic-ai/sdk` | 0.115.0 | for LLM clustering later, M4 |
+| Package                   | Version  | Notes                                                                            |
+| ------------------------- | -------- | -------------------------------------------------------------------------------- |
+| `@tanstack/react-start`   | 1.168.35 | Use this, not `@tanstack/start` (that package is stale, last published ~1yr ago) |
+| `@tanstack/react-router`  | 1.170.18 |                                                                                  |
+| `wrangler`                | 4.118.0  |                                                                                  |
+| `@cloudflare/vite-plugin` | 1.50.0   |                                                                                  |
+| `react` / `react-dom`     | 19.2.8   |                                                                                  |
+| `typescript`              | 7.0.2    |                                                                                  |
+| `zod`                     | 4.4.3    |                                                                                  |
+| `@anthropic-ai/sdk`       | 0.115.0  | for LLM clustering later, M4                                                     |
+
+`typescript` in this project is pinned to `^6.0.2` (resolves `6.0.3`), **not** the
+7.0.2 shown as latest above. `@voidzero-dev/vite-plus-core` pins `typescript@6.0.3`
+internally for its type-aware Oxlint checks (`oxlint-tsgolint`); forcing 7.x fights
+that pin. Trust `vp migrate`'s own choice here over "install latest."
 
 ### TanStack Start + Cloudflare Workers setup
 
 Source: https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack-start/
 
 ```bash
-npm i -D @cloudflare/vite-plugin wrangler
+pnpm add -D @cloudflare/vite-plugin wrangler
 ```
 
 `vite.config.ts` — Cloudflare plugin **must be listed first**:
 
 ```ts
-import { defineConfig } from 'vite-plus';
-import { tanstackStart } from '@tanstack/react-start/plugin/vite';
-import { cloudflare } from '@cloudflare/vite-plugin';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from "vite-plus";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { cloudflare } from "@cloudflare/vite-plugin";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  plugins: [
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
-    tanstackStart(),
-    react(),
-  ],
+  plugins: [cloudflare({ viteEnvironment: { name: "ssr" } }), tanstackStart(), react()],
 });
 ```
 
@@ -156,23 +177,33 @@ export default defineConfig({
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "honeycomb",
-  "compatibility_date": "2026-08-04",
+  "compatibility_date": "2026-07-30",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
 }
 ```
 
+**`compatibility_date` gotcha:** it must not be later than what the installed
+`workerd` binary supports, or `pnpm dev` fails immediately with
+`ERR_FUTURE_COMPATIBILITY_DATE` — "today's date" is _not_ automatically safe.
+Check what's actually installed and use that:
+
+```bash
+cat node_modules/workerd/package.json | grep version   # e.g. 1.20260730.1 -> use 2026-07-30
+```
+
 `package.json` scripts (Vite+ equivalents — use `vp` where it maps cleanly,
-fall back to `vite`/`wrangler` directly for anything Vite+ doesn't wrap):
+fall back to `wrangler` directly for anything Vite+ doesn't wrap):
 
 ```json
 {
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy",
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "deploy": "pnpm build && wrangler deploy",
+    "typecheck": "tsc --noEmit",
     "cf-typegen": "wrangler types",
     "check": "vp check",
     "test": "vp test"
@@ -180,16 +211,49 @@ fall back to `vite`/`wrangler` directly for anything Vite+ doesn't wrap):
 }
 ```
 
+Note `pnpm deploy` as a _command someone types_ is unambiguous even though pnpm
+also has a built-in `pnpm deploy` (for publishing a workspace package elsewhere)
+— verified directly: with a `"deploy"` script defined and no `packages:` field in
+`pnpm-workspace.yaml`, `pnpm deploy` runs the script, not the built-in.
+
 DO / D1 bindings (for M1 issue #4) get added to `wrangler.jsonc` as
 `durable_objects` / `d1_databases` blocks once the DO class exists — not
 scaffolded yet.
 
 ---
 
-## Open items to verify when actually scaffolding
+## How #1 was actually scaffolded (2026-08-05)
 
-- Confirm `vp create` has a TanStack Start + Cloudflare template, or whether to
-  scaffold via `@tanstack/create-start` and then layer `vite-plus` on top via
-  `vp migrate --no-interactive`.
+`vp create @tanstack/start` (the built-in shorthand) just delegates to
+`@tanstack/cli create` — so it's simpler to call that directly and skip the
+indirection:
+
+```bash
+npx @tanstack/cli@latest create --framework React --deployment cloudflare \
+  --blank --no-toolchain --package-manager pnpm --no-git --no-intent -y \
+  --target-dir . --force
+vp migrate --no-interactive
+```
+
+`--blank` skips Tailwind/examples/devtools (spec wants plain CSS, no utility
+framework). `--no-toolchain` skips Biome/ESLint since Vite+ supplies Oxlint/Oxfmt
+instead. `vp migrate` then layers the Vite+ toolchain on top: adds the `vite`
+override, rewrites `vite.config.ts` to `defineConfig`/`lazyPlugins` from
+`vite-plus`, and wires a pre-commit hook (`.vite-hooks/pre-commit` → `vp check --fix`).
+
+**Switched from npm to pnpm** (originally scaffolded with `--package-manager npm`,
+converted afterward — see the pnpm-specific override/build-approval notes above,
+those weren't needed under npm). Converting after the fact: delete
+`package-lock.json` and `node_modules`, update `devEngines.packageManager.name`,
+run `vp install`, then `pnpm approve-builds --all` for any
+`ERR_PNPM_IGNORED_BUILDS` (esbuild/workerd need postinstall scripts to run).
+
+## Open items to verify next time
+
 - Re-run `npm view vite-plus dependencies` right before install — beta moves fast
-  and the vitest pin above may be stale by the time #1 is picked up.
+  and the vitest pin above may be stale by the time later issues touch tests.
+- No `CLOUDFLARE_API_TOKEN` is available in the sandboxed dev environment, so real
+  deploys can't be verified end-to-end there — `wrangler deploy --temporary` (or
+  `pnpm exec wrangler deploy --temporary`) gets a real `*.workers.dev` URL on a
+  throwaway account instead, good enough to prove the pipeline works but not a
+  substitute for a real deploy once credentials exist.
