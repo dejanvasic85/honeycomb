@@ -8,8 +8,8 @@ Built with TanStack Start on Cloudflare Workers.
 ## Develop
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Runs against a local `workerd` instance (via the Cloudflare Vite plugin), not a Node
@@ -18,7 +18,7 @@ polyfill — what runs locally is the same runtime Cloudflare deploys to.
 ## Typecheck
 
 ```bash
-npm run typecheck
+pnpm typecheck
 ```
 
 TypeScript strict mode is on (`tsconfig.json`).
@@ -26,19 +26,18 @@ TypeScript strict mode is on (`tsconfig.json`).
 ## Build
 
 ```bash
-npm run build
+pnpm build
 ```
 
 ## Deploy
 
 ```bash
-npm run deploy
+pnpm deploy
 ```
 
-This runs `npm run build && wrangler deploy`. You need Cloudflare credentials first —
-either:
+This runs `pnpm build && wrangler deploy`. You need Cloudflare credentials first — either:
 
-- `npx wrangler login` (interactive, opens a browser), or
+- `pnpm exec wrangler login` (interactive, opens a browser), or
 - set `CLOUDFLARE_API_TOKEN` in the environment (for CI / non-interactive use).
 
 Deploys publish to a `*.workers.dev` subdomain under your Cloudflare account, named from
@@ -47,8 +46,9 @@ Deploys publish to a `*.workers.dev` subdomain under your Cloudflare account, na
 ## Toolchain
 
 This project uses [Vite+](https://viteplus.dev) (`vp`) instead of separate Vite/ESLint/
-Prettier/Vitest installs — see `docs/TOOLING.md` for why and the required package-manager
-overrides. Useful commands:
+Prettier/Vitest installs, and pnpm as its package manager — see `docs/TOOLING.md` for why
+and the required overrides (now in `pnpm-workspace.yaml`, not `package.json`). Useful
+commands:
 
 ```bash
 vp check   # lint (Oxlint) + format (Oxfmt) + typecheck
