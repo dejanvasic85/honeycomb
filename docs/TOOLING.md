@@ -220,6 +220,28 @@ DO / D1 bindings (for M1 issue #4) get added to `wrangler.jsonc` as
 `durable_objects` / `d1_databases` blocks once the DO class exists — not
 scaffolded yet.
 
+### Adding Durable Objects alongside TanStack Start's entry point
+
+`wrangler.jsonc`'s `main` can't stay `@tanstack/react-start/server-entry` once you need
+extra named exports (a Durable Object class) — the framework's entry only exports a
+default `fetch` handler. Per Cloudflare's TanStack Start guide, wrap it in a custom entry
+instead:
+
+```ts
+// src/server.ts
+import handler from "@tanstack/react-start/server-entry";
+export { RoomDO } from "#/durable-objects/room-do";
+
+export default { fetch: handler.fetch };
+```
+
+Then point `main` at `src/server.ts`. Access bindings from server functions/loaders via
+`import { env } from "cloudflare:workers"` (not `context.cloudflare.env` or similar —
+that module works in any server-side module, framework-agnostic).
+
+Durable Object migrations should use `new_sqlite_classes` (SQLite-backed storage), not the
+older `new_classes` — SQLite-backed is the current default/required path for new DOs.
+
 ---
 
 ## How #1 was actually scaffolded (2026-08-05)

@@ -3,5 +3,16 @@
   "name": "honeycomb",
   "compatibility_date": "2026-07-30",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/server.ts",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM_DO", "class_name": "RoomDO" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "honeycomb",
+      "database_id": "5e8533da-4f02-46de-964e-90189c1b4411",
+    },
+  ],
 }

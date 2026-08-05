@@ -13,6 +13,7 @@
     "deploy": "pnpm build && wrangler deploy",
     "typecheck": "tsc --noEmit",
     "check": "vp check && node scripts/check-no-hex.ts",
+    "cf-typegen": "wrangler types",
     "prepare": "vp config"
   },
   "dependencies": {
