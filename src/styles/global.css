@@ -1,0 +1,32 @@
+@layer reset, base, components, utilities;
+
+@import "./tokens.css";
+@import "./fonts.css";
+@import "./reset.css" layer(reset);
+
+@layer base {
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    line-height: var(--leading-tight);
+  }
+
+  code,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  :focus-visible {
+    outline: var(--stroke-heavy) solid var(--ink);
+    outline-offset: 2px;
+  }
+}

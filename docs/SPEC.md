@@ -1,7 +1,7 @@
 # Honeycomb — Build Spec
 
 > A browser-based party game. Everyone answers the same question; matching answers score.
-> The differentiator: an LLM judges *semantic* equivalence, so "McDonald's", "Maccas" and
+> The differentiator: an LLM judges _semantic_ equivalence, so "McDonald's", "Maccas" and
 > "Macca's" all land in the same cell.
 
 **Status:** pre-alpha, greenfield.
@@ -36,14 +36,14 @@
 
 ### Stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | TanStack Start | Familiar, good Cloudflare adapter, file-based routing |
-| Hosting | Cloudflare Workers | Edge, cheap, colocated with DOs |
-| Realtime + game state | Durable Objects | One DO per room = single-threaded authority, no race conditions |
-| Question bank | D1 | Relational, cheap, not latency-critical |
-| LLM | Anthropic API (Claude Haiku) | Called server-side from the DO |
-| Styling | Plain CSS + CSS Modules | Small surface, hexagon geometry needs real CSS, no team to protect from the cascade |
+| Layer                 | Choice                       | Why                                                                                 |
+| --------------------- | ---------------------------- | ----------------------------------------------------------------------------------- |
+| Framework             | TanStack Start               | Familiar, good Cloudflare adapter, file-based routing                               |
+| Hosting               | Cloudflare Workers           | Edge, cheap, colocated with DOs                                                     |
+| Realtime + game state | Durable Objects              | One DO per room = single-threaded authority, no race conditions                     |
+| Question bank         | D1                           | Relational, cheap, not latency-critical                                             |
+| LLM                   | Anthropic API (Claude Haiku) | Called server-side from the DO                                                      |
+| Styling               | Plain CSS + CSS Modules      | Small surface, hexagon geometry needs real CSS, no team to protect from the cascade |
 
 ### Why Durable Objects
 
@@ -75,16 +75,16 @@ Browser ──WS───>  Worker ──> idFromName(roomCode) ──> RoomDO
 
 ```ts
 type Phase =
-  | 'lobby'
-  | 'question'    // question shown, brief read time
-  | 'answering'   // inputs open
-  | 'judging'     // LLM clustering in flight
-  | 'reveal'      // clusters shown
-  | 'scoring'     // honey awarded, sting assigned
-  | 'gameover';
+  | "lobby"
+  | "question" // question shown, brief read time
+  | "answering" // inputs open
+  | "judging" // LLM clustering in flight
+  | "reveal" // clusters shown
+  | "scoring" // honey awarded, sting assigned
+  | "gameover";
 
 interface Player {
-  id: string;          // UUID, issued on first join, stored in localStorage
+  id: string; // UUID, issued on first join, stored in localStorage
   name: string;
   connected: boolean;
   honey: number;
@@ -100,7 +100,7 @@ interface Answer {
 
 interface Cluster {
   id: string;
-  canonical: string;   // display label, e.g. "McDonald's"
+  canonical: string; // display label, e.g. "McDonald's"
   playerIds: string[];
 }
 
@@ -111,7 +111,7 @@ interface RoomState {
   round: number;
   players: Record<string, Player>;
   currentQuestion: Question | null;
-  answers: Record<string, Answer>;   // NEVER broadcast before reveal
+  answers: Record<string, Answer>; // NEVER broadcast before reveal
   clusters: Cluster[] | null;
   usedQuestionIds: string[];
   createdAt: number;
@@ -129,29 +129,37 @@ export class RoomDO implements DurableObject {
     private env: Env,
   ) {
     ctx.blockConcurrencyWhile(async () => {
-      this.state = (await ctx.storage.get<RoomState>('state')) ?? freshState();
+      this.state = (await ctx.storage.get<RoomState>("state")) ?? freshState();
     });
   }
 
   async fetch(req: Request): Promise<Response> {
     // WS upgrade only
     const pair = new WebSocketPair();
-    this.ctx.acceptWebSocket(pair[1]);   // hibernation-aware
+    this.ctx.acceptWebSocket(pair[1]); // hibernation-aware
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
   async webSocketMessage(ws: WebSocket, raw: string) {
-    const msg = ClientMessage.parse(JSON.parse(raw));  // zod
+    const msg = ClientMessage.parse(JSON.parse(raw)); // zod
     await this.handle(ws, msg);
     await this.persist();
   }
 
-  async webSocketClose(ws: WebSocket) { /* mark disconnected, broadcast */ }
+  async webSocketClose(ws: WebSocket) {
+    /* mark disconnected, broadcast */
+  }
 
-  async alarm() { /* phase timeouts: answering → judging */ }
+  async alarm() {
+    /* phase timeouts: answering → judging */
+  }
 
-  private broadcast(msg: ServerMessage) { /* to all sockets */ }
-  private send(ws: WebSocket, msg: ServerMessage) { /* to one */ }
+  private broadcast(msg: ServerMessage) {
+    /* to all sockets */
+  }
+  private send(ws: WebSocket, msg: ServerMessage) {
+    /* to one */
+  }
 }
 ```
 
@@ -190,30 +198,30 @@ All messages are JSON, validated with zod on both ends.
 
 ### Client → Server
 
-| Type | Payload | Notes |
-|---|---|---|
-| `join` | `{ name }` | Returns issued `playerId` |
-| `rejoin` | `{ playerId }` | Restores session |
-| `start` | — | Host only |
-| `submitAnswer` | `{ text }` | Editable until phase leaves `answering` |
-| `mergeCluster` | `{ sourceId, targetId }` | Host override of LLM |
-| `splitCluster` | `{ clusterId, playerId }` | Host override |
-| `nextRound` | — | Host only |
+| Type           | Payload                   | Notes                                   |
+| -------------- | ------------------------- | --------------------------------------- |
+| `join`         | `{ name }`                | Returns issued `playerId`               |
+| `rejoin`       | `{ playerId }`            | Restores session                        |
+| `start`        | —                         | Host only                               |
+| `submitAnswer` | `{ text }`                | Editable until phase leaves `answering` |
+| `mergeCluster` | `{ sourceId, targetId }`  | Host override of LLM                    |
+| `splitCluster` | `{ clusterId, playerId }` | Host override                           |
+| `nextRound`    | —                         | Host only                               |
 
 ### Server → Client
 
-| Type | Payload |
-|---|---|
-| `state` | Full sanitised snapshot (no other players' answers) |
-| `playerJoined` / `playerLeft` | `{ player }` |
-| `phase` | `{ phase, endsAt? }` |
-| `question` | `{ text, category }` |
-| `answerProgress` | `{ answered, total }` |
-| `reveal` | `{ clusters, answersByPlayer }` |
-| `scores` | `{ players, stungPlayerId }` |
-| `error` | `{ code, message }` |
+| Type                          | Payload                                             |
+| ----------------------------- | --------------------------------------------------- |
+| `state`                       | Full sanitised snapshot (no other players' answers) |
+| `playerJoined` / `playerLeft` | `{ player }`                                        |
+| `phase`                       | `{ phase, endsAt? }`                                |
+| `question`                    | `{ text, category }`                                |
+| `answerProgress`              | `{ answered, total }`                               |
+| `reveal`                      | `{ clusters, answersByPlayer }`                     |
+| `scores`                      | `{ players, stungPlayerId }`                        |
+| `error`                       | `{ code, message }`                                 |
 
-**Sanitisation rule:** write one `sanitiseFor(playerId, state)` function and route *every*
+**Sanitisation rule:** write one `sanitiseFor(playerId, state)` function and route _every_
 outbound state message through it. Never serialise `RoomState` directly.
 
 ---
@@ -242,7 +250,7 @@ CREATE TABLE questions (
 
 ### What makes a good question
 
-- Has a *likely* majority answer but isn't a trivia question with one right answer.
+- Has a _likely_ majority answer but isn't a trivia question with one right answer.
   Good: "Name a topping you'd put on a pizza." Bad: "What's the capital of France?"
 - Answerable in 1–3 words.
 - No knowledge barrier — a 7-year-old and a grandparent should both have an answer.
@@ -312,36 +320,36 @@ stung state reads as isolation, which suits it better anyway.
 ```css
 :root {
   /* ---- ink ---- */
-  --paper:        #E9E6DC;   /* newsprint, cooler than cream */
-  --paper-shade:  #DDD9CC;   /* pressed/inset areas */
-  --ink:          #1F1C17;   /* keylines and body — never pure black */
-  --ink-muted:    #6B655C;
+  --paper: #e9e6dc; /* newsprint, cooler than cream */
+  --paper-shade: #ddd9cc; /* pressed/inset areas */
+  --ink: #1f1c17; /* keylines and body — never pure black */
+  --ink-muted: #6b655c;
 
   /* honey — overprint tiers, one per matching player */
-  --honey-1:      #FFEFB8;
-  --honey-2:      #FFD84F;
-  --honey-3:      #F9B700;
-  --honey-4:      #DE8500;   /* 4+ clamps here */
+  --honey-1: #ffefb8;
+  --honey-2: #ffd84f;
+  --honey-3: #f9b700;
+  --honey-4: #de8500; /* 4+ clamps here */
 
-  --sting:        #2B4FD8;   /* riso federal blue */
-  --sting-tint:   #C7D2F7;
+  --sting: #2b4fd8; /* riso federal blue */
+  --sting-tint: #c7d2f7;
 
   /* ---- type ---- */
-  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
-  --font-body:    'Atkinson Hyperlegible', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  --text-xs:      0.75rem;    /* 12 — labels */
-  --text-sm:      0.875rem;   /* 14 — secondary */
-  --text-base:    1rem;       /* 16 — body floor, never smaller for kids */
-  --text-lg:      1.25rem;    /* 20 — player names */
-  --text-xl:      1.75rem;    /* 28 — question text */
-  --text-2xl:     2.5rem;     /* 40 — headings */
-  --text-code:    3.5rem;     /* 56 — room code */
+  --text-xs: 0.75rem; /* 12 — labels */
+  --text-sm: 0.875rem; /* 14 — secondary */
+  --text-base: 1rem; /* 16 — body floor, never smaller for kids */
+  --text-lg: 1.25rem; /* 20 — player names */
+  --text-xl: 1.75rem; /* 28 — question text */
+  --text-2xl: 2.5rem; /* 40 — headings */
+  --text-code: 3.5rem; /* 56 — room code */
 
-  --leading-tight: 1.1;       /* display */
-  --leading-body:  1.5;
-  --tracking-code: 0.15em;    /* room code only */
+  --leading-tight: 1.1; /* display */
+  --leading-body: 1.5;
+  --tracking-code: 0.15em; /* room code only */
 
   /* ---- space — 4px base ---- */
   --space-1: 0.25rem;
@@ -354,40 +362,44 @@ stung state reads as isolation, which suits it better anyway.
   --space-16: 4rem;
 
   /* ---- borders ---- */
-  --stroke:       2px;        /* default keyline */
-  --stroke-heavy: 3px;        /* active/selected cells */
-  --stroke-hair:  1px;        /* dividers only */
-  --misreg:       2px;        /* print offset — the aesthetic risk */
+  --stroke: 2px; /* default keyline */
+  --stroke-heavy: 3px; /* active/selected cells */
+  --stroke-hair: 1px; /* dividers only */
+  --misreg: 2px; /* print offset — the aesthetic risk */
 
-  --radius:       0;          /* riso doesn't do rounded. Hexagons have no corners anyway */
-  --radius-input: 2px;        /* the single exception, for text fields */
+  --radius: 0; /* riso doesn't do rounded. Hexagons have no corners anyway */
+  --radius-input: 2px; /* the single exception, for text fields */
 
   /* ---- geometry ---- */
-  --cell-w:       6rem;
-  --cell-h:       6.9rem;     /* pointy-top hex ratio, w × 1.1547 */
-  --cell-gap:     0.375rem;
-  --hex-clip:     polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  --cell-w: 6rem;
+  --cell-h: 6.9rem; /* pointy-top hex ratio, w × 1.1547 */
+  --cell-gap: 0.375rem;
+  --hex-clip: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 
   /* ---- motion ---- */
-  --ease:         cubic-bezier(0.2, 0, 0, 1);
-  --ease-snap:    cubic-bezier(0.34, 1.4, 0.64, 1);  /* cells snapping into cluster */
-  --dur-fast:     120ms;
-  --dur:          220ms;
-  --dur-slow:     420ms;      /* reveal sequence */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-snap: cubic-bezier(0.34, 1.4, 0.64, 1); /* cells snapping into cluster */
+  --dur-fast: 120ms;
+  --dur: 220ms;
+  --dur-slow: 420ms; /* reveal sequence */
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { --dur-fast: 0ms; --dur: 0ms; --dur-slow: 0ms; }
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
 }
 ```
 
 ### Type rationale
 
-| Face | Role | Why this one |
-|---|---|---|
-| Bricolage Grotesque | Display, questions | Variable width/weight, genuinely characterful, not the default friendly-rounded sans |
-| Atkinson Hyperlegible | Body, names, UI | Built by the Braille Institute for low-vision legibility. In a mixed-ability classroom this is functional, not decorative |
-| JetBrains Mono | Room codes, scores | Slashed zero, unambiguous `1`/`l`/`I` — codes get read aloud across rooms |
+| Face                  | Role               | Why this one                                                                                                              |
+| --------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Bricolage Grotesque   | Display, questions | Variable width/weight, genuinely characterful, not the default friendly-rounded sans                                      |
+| Atkinson Hyperlegible | Body, names, UI    | Built by the Braille Institute for low-vision legibility. In a mixed-ability classroom this is functional, not decorative |
+| JetBrains Mono        | Room codes, scores | Slashed zero, unambiguous `1`/`l`/`I` — codes get read aloud across rooms                                                 |
 
 All three are free on Google Fonts. Self-host via `@font-face` with `font-display: swap`;
 subset to Latin. Variable versions only.
@@ -399,7 +411,9 @@ offset by `--misreg` down and right. It reads as a slightly-off print run. This 
 place to spend boldness — everything else stays disciplined.
 
 ```css
-.cell { position: relative; }
+.cell {
+  position: relative;
+}
 .cell__fill {
   position: absolute;
   inset: 0;
@@ -415,7 +429,7 @@ place to spend boldness — everything else stays disciplined.
   background: var(--ink);
 }
 .cell__line::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: var(--stroke);
   clip-path: var(--hex-clip);
@@ -477,6 +491,7 @@ Labels: `infra`, `durable-object`, `ui`, `game-logic`, `llm`, `spike`, `a11y`.
 ---
 
 #### #1 Scaffold TanStack Start on Cloudflare Workers
+
 `infra`
 
 Stand up the project and prove the deploy pipeline works end to end before anything else.
@@ -493,6 +508,7 @@ Stand up the project and prove the deploy pipeline works end to end before anyth
 ---
 
 #### #2 CSS foundation — tokens, layers, reset
+
 `ui`
 
 Establish the styling vocabulary before any component exists, so nothing gets built against
@@ -513,6 +529,7 @@ sourced from tokens.
 ---
 
 #### #3 Hexagon component + landing page
+
 `ui`
 
 The core visual primitive. Everything in this game is a hexagon.
@@ -533,6 +550,7 @@ misregistration reads as intentional rather than broken.
 ---
 
 #### #4 Wrangler bindings — DO, D1, secrets
+
 `infra`
 
 - [ ] `RoomDO` durable object binding declared with a migration tag
@@ -547,6 +565,7 @@ misregistration reads as intentional rather than broken.
 ---
 
 #### #5 RoomDO skeleton with hibernation-correct WebSockets
+
 `durable-object` `spike`
 
 **The highest-risk issue in the project.** Getting hibernation wrong here means rebuilding
@@ -575,6 +594,7 @@ the non-hibernating API looks almost identical and silently costs 10x.
 ---
 
 #### #6 Room codes and routing
+
 `durable-object`
 
 - [ ] 6-character code generator, uppercase, ambiguity-safe alphabet (no `O/0`, `I/1`, `S/5`)
@@ -589,6 +609,7 @@ the non-hibernating API looks almost identical and silently costs 10x.
 ---
 
 #### #7 Join, rejoin, and player identity
+
 `durable-object` `game-logic`
 
 Party games live or die on reconnection. A kid dropping off wifi mid-round must come back
@@ -609,6 +630,7 @@ with their answer intact.
 ---
 
 #### #8 Lobby UI
+
 `ui`
 
 - [ ] Room code displayed large (`--text-code`) with a copy-to-clipboard control
@@ -624,6 +646,7 @@ with their answer intact.
 ---
 
 #### #9 Host designation and migration
+
 `durable-object` `game-logic`
 
 - [ ] First player to join becomes host; `hostId` stored in DO state
@@ -641,7 +664,7 @@ with their answer intact.
 
 ### Milestone 3 — Game loop
 
-*Expand these into full criteria when M2 lands — building the DO will change your view of them.*
+_Expand these into full criteria when M2 lands — building the DO will change your view of them._
 
 10. Phase state machine in DO + `phase` broadcasts
 11. D1 question schema + seed with 20 hand-written questions
@@ -654,6 +677,7 @@ with their answer intact.
 18. Answering-phase alarm/timer
 
 ### Milestone 4 — Make it good
+
 19. Host merge/split cluster controls
 20. LLM clustering behind the interface, with fallback
 21. Question generation script + review workflow → 300 questions
