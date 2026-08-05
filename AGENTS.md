@@ -18,3 +18,10 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 - [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->
+
+## Before Committing
+
+- [ ] Run a code review on the diff before committing any set of changes —
+      `/code-review` in Claude Code, or an equivalent review pass otherwise.
+      Fix or consciously accept every finding first; don't commit with
+      unresolved findings you haven't looked at.
