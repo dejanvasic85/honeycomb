@@ -19,3 +19,19 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 - [ ] Before committing any set of changes, run the `/caveman-review` skill on the diff and apply the fixes it suggests.
 
 <!--VITE PLUS END-->
+
+## Code style
+
+- Prefer functions over classes by default — plain functions and modules, not
+  object-oriented wrappers, for application logic, utilities, and scripts.
+- Exception: Cloudflare Durable Objects. The platform requires a class that
+  extends `DurableObject` (or implements the `fetch`/`alarm`/`webSocketMessage`
+  contract) — there is no official functional API for this. See
+  `src/durable-objects/room-do.ts` and `docs/SPEC.md` §3. Don't add a
+  wrapper library to fake a functional style here; it's one class at the
+  platform boundary, not a pattern to spread elsewhere.
+- Scripts (e.g. `scripts/`) are TypeScript, run directly with `node` (Node's
+  native TS support) — not plain `.js`/`.mjs`, and not a second runtime like
+  Bun. This project already standardises on pnpm + Node + wrangler; adding
+  Bun would mean provisioning a second runtime in CI for no benefit over
+  what Node already does natively.

@@ -10,9 +10,9 @@ const srcDir = join(root, "src");
 const tokensFile = join(srcDir, "styles", "tokens.css");
 const hexPattern = /#(?:[0-9a-fA-F]{3,4}){1,2}\b/g;
 
-function collectCssFiles(dir) {
+function collectCssFiles(dir: string): string[] {
   const entries = readdirSync(dir);
-  const files = [];
+  const files: string[] = [];
   for (const entry of entries) {
     const fullPath = join(dir, entry);
     if (statSync(fullPath).isDirectory()) {
@@ -24,7 +24,7 @@ function collectCssFiles(dir) {
   return files;
 }
 
-const violations = [];
+const violations: { file: string; matches: RegExpMatchArray }[] = [];
 
 for (const file of collectCssFiles(srcDir)) {
   if (file === tokensFile) continue;
