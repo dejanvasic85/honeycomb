@@ -20,6 +20,23 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 <!--VITE PLUS END-->
 
+## UI verification
+
+- Any change that touches rendered markup, CSS, or client-side interaction
+  must be verified in a real browser with the `agent-browser` skill before
+  it's reported as done — don't rely on reading the CSS/JSX and reasoning
+  about what it probably looks like.
+- Start the dev server (`vp dev` / `pnpm dev`) and drive it with
+  `agent-browser` (navigate, click, fill, screenshot) against the actual
+  running page. Load `agent-browser skills get core` first if you haven't
+  used it yet in this session.
+- Screenshot every breakpoint or state called out by the task or `docs/SPEC.md`
+  (e.g. the 360px/768px/1280px widths noted there), not just one default
+  viewport.
+- Treat a claim like "verified visually" or "screenshots taken" as
+  unsubstantiated unless the commands were actually run this session —
+  don't narrate hypothetical `agent-browser` output.
+
 ## Code style
 
 - Prefer functions over classes by default — plain functions and modules, not
