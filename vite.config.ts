@@ -6,6 +6,7 @@ import viteReact from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 
 const config = defineConfig({
+  server: { port: 6767 },
   staged: {
     "*": "vp check --fix",
   },
