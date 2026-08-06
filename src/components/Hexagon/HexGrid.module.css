@@ -1,0 +1,21 @@
+.grid {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.row {
+  display: flex;
+  gap: var(--cell-gap);
+  /* Pointy-top hexes tessellate at 3/4 of their height per row; pull each
+     row up into the previous one's bottom third to close the gap. */
+  margin-top: calc(-0.25 * var(--cell-h));
+}
+
+.row:first-child {
+  margin-top: 0;
+}
+
+.row[data-offset="true"] {
+  margin-left: calc((var(--cell-w) + var(--cell-gap)) / 2);
+}
