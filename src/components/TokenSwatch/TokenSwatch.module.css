@@ -1,0 +1,19 @@
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.chip {
+  width: var(--space-16);
+  height: var(--space-12);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}

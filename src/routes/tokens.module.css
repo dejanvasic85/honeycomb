@@ -1,0 +1,52 @@
+.page {
+  width: min(60rem, calc(100% - var(--space-8)));
+  margin: var(--space-12) auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-end;
+}
+
+.typeRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.typeLabel {
+  width: 5rem;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.spaceBar {
+  background: var(--honey-3);
+  border: var(--stroke-hair) solid var(--ink);
+  height: var(--space-4);
+}
+
+.spaceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.roomCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  letter-spacing: var(--tracking-code);
+}

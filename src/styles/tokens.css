@@ -1,0 +1,78 @@
+/*
+  The ONLY place raw values (hex, spacing, type) live. Every component
+  stylesheet must reference these custom properties, never literals.
+  See docs/SPEC.md §7.
+*/
+:root {
+  /* ---- ink ---- */
+  --paper: #e9e6dc; /* newsprint, cooler than cream */
+  --paper-shade: #ddd9cc; /* pressed/inset areas */
+  --ink: #1f1c17; /* keylines and body — never pure black */
+  --ink-muted: #6b655c;
+
+  /* honey — overprint tiers, one per matching player */
+  --honey-1: #ffefb8;
+  --honey-2: #ffd84f;
+  --honey-3: #f9b700;
+  --honey-4: #de8500; /* 4+ clamps here */
+
+  --sting: #2b4fd8; /* riso federal blue */
+  --sting-tint: #c7d2f7;
+
+  /* ---- type ---- */
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --text-xs: 0.75rem; /* 12 — labels */
+  --text-sm: 0.875rem; /* 14 — secondary */
+  --text-base: 1rem; /* 16 — body floor, never smaller for kids */
+  --text-lg: 1.25rem; /* 20 — player names */
+  --text-xl: 1.75rem; /* 28 — question text */
+  --text-2xl: 2.5rem; /* 40 — headings */
+  --text-code: 3.5rem; /* 56 — room code */
+
+  --leading-tight: 1.1; /* display */
+  --leading-body: 1.5;
+  --tracking-code: 0.15em; /* room code only */
+
+  /* ---- space — 4px base ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ---- borders ---- */
+  --stroke: 2px; /* default keyline */
+  --stroke-heavy: 3px; /* active/selected cells */
+  --stroke-hair: 1px; /* dividers only */
+  --misreg: 2px; /* print offset — the aesthetic risk */
+
+  --radius: 0; /* riso doesn't do rounded. Hexagons have no corners anyway */
+  --radius-input: 2px; /* the single exception, for text fields */
+
+  /* ---- geometry ---- */
+  --cell-w: 6rem;
+  --cell-h: 6.9rem; /* pointy-top hex ratio, w × 1.1547 */
+  --cell-gap: 0.375rem;
+  --hex-clip: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+
+  /* ---- motion ---- */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-snap: cubic-bezier(0.34, 1.4, 0.64, 1); /* cells snapping into cluster */
+  --dur-fast: 120ms;
+  --dur: 220ms;
+  --dur-slow: 420ms; /* reveal sequence */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}
