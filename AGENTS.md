@@ -20,6 +20,12 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 <!--VITE PLUS END-->
 
+## Communication style
+
+Minimum words. Never repeat yourself. Applies everywhere: chat replies, commit
+messages, PR titles/descriptions, code comments, docs, GitHub issues, and PR/issue
+comments.
+
 ## UI verification
 
 - Any change that touches rendered markup, CSS, or client-side interaction
