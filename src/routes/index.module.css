@@ -1,0 +1,95 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-4);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-2xl);
+}
+
+.tagline {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: var(--space-12);
+  padding: var(--space-3) var(--space-6);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--honey-2);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.primaryButton:hover,
+.secondaryButton:hover:not(:disabled) {
+  background: var(--honey-3);
+}
+
+.secondaryButton {
+  background: var(--paper);
+}
+
+.secondaryButton:disabled {
+  border-color: var(--ink-muted);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.joinForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.joinLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.joinRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.joinInput {
+  flex: 1;
+  min-height: var(--space-12);
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--radius-input);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-code);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.joinRow .secondaryButton {
+  flex: none;
+}

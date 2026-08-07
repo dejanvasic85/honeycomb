@@ -1,0 +1,92 @@
+.hexagon {
+  position: relative;
+  width: calc(var(--cell-w) * var(--hex-scale, 1));
+  height: calc(var(--cell-h) * var(--hex-scale, 1));
+  flex: none;
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  transform: translate(var(--misreg), var(--misreg));
+  clip-path: var(--hex-clip);
+  background: var(--cell-tone, var(--paper));
+  transition: background var(--dur) var(--ease);
+}
+
+.line {
+  position: absolute;
+  inset: 0;
+  clip-path: var(--hex-clip);
+  background: var(--ink);
+}
+
+.line::after {
+  content: "";
+  position: absolute;
+  inset: var(--stroke);
+  clip-path: var(--hex-clip);
+  background: var(--cell-tone, var(--paper));
+  transition: background var(--dur) var(--ease);
+}
+
+.hexagon[data-state="filled"] {
+  --cell-tone: var(--paper-shade);
+}
+
+.hexagon[data-state="honey"][data-tier="1"] {
+  --cell-tone: var(--honey-1);
+}
+
+.hexagon[data-state="honey"][data-tier="2"] {
+  --cell-tone: var(--honey-2);
+}
+
+.hexagon[data-state="honey"][data-tier="3"] {
+  --cell-tone: var(--honey-3);
+}
+
+.hexagon[data-state="honey"][data-tier="4"] {
+  --cell-tone: var(--honey-4);
+}
+
+.hexagon[data-state="stung"] {
+  --cell-tone: var(--sting);
+}
+
+.content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  overflow: hidden;
+  overflow-wrap: break-word;
+  text-align: center;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.hexagon[data-state="stung"] .content {
+  color: var(--paper);
+}
+
+.stungIcon {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: var(--stroke-hair) solid var(--paper);
+  border-radius: 50%;
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
