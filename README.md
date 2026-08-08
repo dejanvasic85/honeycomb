@@ -13,7 +13,19 @@ pnpm dev
 ```
 
 Runs against a local `workerd` instance (via the Cloudflare Vite plugin), not a Node
-polyfill — what runs locally is the same runtime Cloudflare deploys to.
+polyfill — what runs locally is the same runtime Cloudflare deploys to. The `RoomDO`
+Durable Object and `DB` (D1) binding both run against local simulators in dev — no
+network calls leave your machine. Copy `.dev.vars.example` to `.dev.vars` first (gitignored,
+holds `ANTHROPIC_API_KEY`; the real value is set in production via `wrangler secret put`).
+
+Visit `/debug` to confirm both bindings are wired up — it runs a trivial D1 query and pings
+the `RoomDO`.
+
+## Bindings
+
+Declared in `wrangler.jsonc`: `ROOM_DO` (Durable Object, SQLite-backed storage) and `DB`
+(D1 database named `honeycomb`). Run `pnpm cf-typegen` after changing bindings to regenerate
+`worker-configuration.d.ts` (committed, gives `Env` its types).
 
 ## Typecheck
 
