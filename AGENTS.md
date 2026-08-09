@@ -58,3 +58,24 @@ comments.
   Bun. This project already standardises on pnpm + Node + wrangler; adding
   Bun would mean provisioning a second runtime in CI for no benefit over
   what Node already does natively.
+
+## Validation
+
+- Any input crossing a trust boundary (WebSocket messages, request bodies,
+  query params — anything from a client) is parsed with a `zod` schema, not
+  `JSON.parse` plus a hand-rolled type guard. See `docs/SPEC.md` §4 and
+  `src/durable-objects/messages.ts` for the pattern. Reject malformed input
+  (`safeParse`), don't throw on it.
+
+## Testing
+
+- New logic ships with `vitest` tests in the same PR — this applies from
+  the first line of logic, not deferred to a later milestone.
+- Prefer testing pure functions directly. Where logic is entangled with a
+  runtime that's expensive to simulate (e.g. a Durable Object's
+  `ctx.storage`/`ctx.acceptWebSocket()`), extract the pure part (parsing,
+  message building, state transitions) into a plain function and test that;
+  keep the class itself as thin runtime glue. See
+  `src/durable-objects/messages.ts` / `messages.test.ts`.
+- `pnpm test` (`vp test`) runs in CI — a PR with untested new logic doesn't
+  meet the bar even if `pnpm check` is green.

@@ -20,9 +20,15 @@ const config = defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   resolve: { tsconfigPaths: true },
+  // The Cloudflare plugin's "ssr" worker environment rejects the
+  // `resolve.external` Vitest 4 sets on every environment at startup
+  // (https://github.com/cloudflare/workers-sdk/issues/10120-adjacent bug,
+  // still open upstream). Our vitest suite only exercises pure functions
+  // (see AGENTS.md Testing), so skip the plugin entirely under `vp test`
+  // rather than pulling in `@cloudflare/vitest-pool-workers` for logic that
+  // never touches the Workers runtime.
   plugins: lazyPlugins(() => [
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
-
+    ...(process.env.VITEST ? [] : [cloudflare({ viteEnvironment: { name: "ssr" } })]),
     tanstackStart(),
     viteReact(),
   ]),

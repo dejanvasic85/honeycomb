@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as DebugRouteImport } from "./routes/debug";
+import { Route as DebugWsRouteImport } from "./routes/debug-ws";
 import { Route as TokensRouteImport } from "./routes/tokens";
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const DebugRoute = DebugRouteImport.update({
   path: "/debug",
   getParentRoute: () => rootRouteImport,
 } as any);
+const DebugWsRoute = DebugWsRouteImport.update({
+  id: "/debug-ws",
+  path: "/debug-ws",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const TokensRoute = TokensRouteImport.update({
   id: "/tokens",
   path: "/tokens",
@@ -32,30 +38,34 @@ const TokensRoute = TokensRouteImport.update({
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/debug": typeof DebugRoute;
+  "/debug-ws": typeof DebugWsRoute;
   "/tokens": typeof TokensRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/debug": typeof DebugRoute;
+  "/debug-ws": typeof DebugWsRoute;
   "/tokens": typeof TokensRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/debug": typeof DebugRoute;
+  "/debug-ws": typeof DebugWsRoute;
   "/tokens": typeof TokensRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/debug" | "/tokens";
+  fullPaths: "/" | "/debug" | "/debug-ws" | "/tokens";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/debug" | "/tokens";
-  id: "__root__" | "/" | "/debug" | "/tokens";
+  to: "/" | "/debug" | "/debug-ws" | "/tokens";
+  id: "__root__" | "/" | "/debug" | "/debug-ws" | "/tokens";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   DebugRoute: typeof DebugRoute;
+  DebugWsRoute: typeof DebugWsRoute;
   TokensRoute: typeof TokensRoute;
 }
 
@@ -75,6 +85,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DebugRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/debug-ws": {
+      id: "/debug-ws";
+      path: "/debug-ws";
+      fullPath: "/debug-ws";
+      preLoaderRoute: typeof DebugWsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/tokens": {
       id: "/tokens";
       path: "/tokens";
@@ -88,8 +105,18 @@ declare module "@tanstack/react-router" {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DebugRoute: DebugRoute,
+  DebugWsRoute: DebugWsRoute,
   TokensRoute: TokensRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>();
+
+import type { getRouter } from "./router.tsx";
+import type { createStart } from "@tanstack/react-start";
+declare module "@tanstack/react-start" {
+  interface Register {
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
+  }
+}

@@ -101,10 +101,12 @@ overrides:
 generate/fill it rather than guessing the key name. It replaces the older
 `onlyBuiltDependencies` array from `package.json`'s `"pnpm"` key.)
 
-We didn't add a `vitest` override — nothing pulls in a transitive `vitest` yet
-(no tests exist). Add one to the same `overrides:` block the moment the first
-test lands (M3 #13), pinned to whatever `npm view vite-plus dependencies` shows
-at that time.
+Added the `vitest` override (in `pnpm-workspace.yaml`, alongside the `vite`
+one above) as of #5's first test — pinned to whatever `npm view vite-plus
+dependencies` showed at that time (`4.1.10`). Tests now start with the first
+line of logic, not deferred to a milestone gate — see AGENTS.md's Testing
+section. Re-check the pin against `npm view vite-plus dependencies` if it
+drifts from the `vitest` version actually installed.
 
 For npm instead: `"overrides": { "vite": "npm:@voidzero-dev/vite-plus-core@0.2.7", "vitest": "4.1.10" }`
 at the top level of `package.json`. Yarn: `resolutions`.
@@ -272,8 +274,9 @@ run `vp install`, then `pnpm approve-builds --all` for any
 
 ## Open items to verify next time
 
-- Re-run `npm view vite-plus dependencies` right before install — beta moves fast
-  and the vitest pin above may be stale by the time later issues touch tests.
+- Re-run `npm view vite-plus dependencies` right before install if the
+  `vitest` override starts drifting from what's actually installed — beta
+  moves fast.
 - No `CLOUDFLARE_API_TOKEN` is available in the sandboxed dev environment, so real
   deploys can't be verified end-to-end there — `wrangler deploy --temporary` (or
   `pnpm exec wrangler deploy --temporary`) gets a real `*.workers.dev` URL on a
