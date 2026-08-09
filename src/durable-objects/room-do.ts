@@ -1,5 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { ClientMessage, buildPongMessage } from "./messages";
+
 export class RoomDO extends DurableObject {
   // Number of times this class has been constructed for a given DO instance —
   // increments on cold start and on every hibernation wake. Restored from
@@ -31,18 +33,19 @@ export class RoomDO extends DurableObject {
   async webSocketMessage(_ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (typeof message !== "string") return;
 
-    let parsed: unknown;
+    let raw: unknown;
     try {
-      parsed = JSON.parse(message);
+      raw = JSON.parse(message);
     } catch {
       return;
     }
 
-    if (isRecord(parsed) && parsed.type === "ping") {
-      const pong = JSON.stringify({ type: "pong", wakeCount: this.wakeCount });
-      for (const socket of this.ctx.getWebSockets()) {
-        socket.send(pong);
-      }
+    const result = ClientMessage.safeParse(raw);
+    if (!result.success) return;
+
+    const pong = buildPongMessage(this.wakeCount);
+    for (const socket of this.ctx.getWebSockets()) {
+      socket.send(pong);
     }
   }
 
@@ -54,8 +57,4 @@ export class RoomDO extends DurableObject {
     console.error("RoomDO websocket error", error);
     ws.close(1011, "error");
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
