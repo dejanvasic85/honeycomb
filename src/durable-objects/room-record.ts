@@ -1,11 +1,14 @@
 import { z } from "zod";
 
+import type { Player } from "./player";
+
 export const InitRoomRequest = z.object({ code: z.string().length(6) });
 export type InitRoomRequest = z.infer<typeof InitRoomRequest>;
 
 export interface RoomRecord {
   code: string;
   createdAt: number;
+  players: Record<string, Player>;
 }
 
 export const ROOM_STORAGE_KEY = "room";
