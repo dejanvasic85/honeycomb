@@ -1,8 +1,21 @@
 import { DurableObject } from "cloudflare:workers";
 
-import { ClientMessage, buildPongMessage } from "./messages";
+import {
+  ClientMessage,
+  buildErrorMessage,
+  buildJoinedMessage,
+  buildPlayerJoinedMessage,
+  buildPlayerLeftMessage,
+  buildPongMessage,
+} from "./messages";
+import { disambiguateName } from "./player";
+import type { Player } from "./player";
 import { CLEANUP_ALARM_DELAY_MS, InitRoomRequest, ROOM_STORAGE_KEY } from "./room-record";
 import type { RoomRecord } from "./room-record";
+
+interface WebSocketAttachment {
+  playerId: string;
+}
 
 export class RoomDO extends DurableObject {
   // Number of times this class has been constructed for a given DO instance —
@@ -64,7 +77,7 @@ export class RoomDO extends DurableObject {
       return Response.json({ error: "room_exists" }, { status: 409 });
     }
 
-    const room: RoomRecord = { code: parsed.data.code, createdAt: Date.now() };
+    const room: RoomRecord = { code: parsed.data.code, createdAt: Date.now(), players: {} };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
 
@@ -77,7 +90,7 @@ export class RoomDO extends DurableObject {
     // (expire idle rooms? archive scores?) is deferred to #22.
   }
 
-  async webSocketMessage(_ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (typeof message !== "string") return;
 
     let raw: unknown;
@@ -90,13 +103,94 @@ export class RoomDO extends DurableObject {
     const result = ClientMessage.safeParse(raw);
     if (!result.success) return;
 
+    switch (result.data.type) {
+      case "ping":
+        this.handlePing();
+        return;
+      case "join":
+        await this.handleJoin(ws, result.data.name);
+        return;
+      case "rejoin":
+        await this.handleRejoin(ws, result.data.playerId);
+        return;
+    }
+  }
+
+  private handlePing(): void {
     const pong = buildPongMessage(this.wakeCount);
+    this.broadcast(pong);
+  }
+
+  private async handleJoin(ws: WebSocket, name: string): Promise<void> {
+    const existingAttachment: WebSocketAttachment | null = ws.deserializeAttachment();
+    if (existingAttachment) {
+      ws.send(buildErrorMessage("already_joined", "This connection already has a player."));
+      return;
+    }
+
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    if (!room) {
+      ws.send(buildErrorMessage("room_not_found", "No room exists for this code."));
+      return;
+    }
+
+    const existingNames = Object.values(room.players).map((player) => player.name);
+    const player: Player = {
+      id: crypto.randomUUID(),
+      name: disambiguateName(name, existingNames),
+      connected: true,
+      honey: 0,
+      stung: false,
+      joinedAtRound: 0,
+    };
+
+    room.players[player.id] = player;
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    const attachment: WebSocketAttachment = { playerId: player.id };
+    ws.serializeAttachment(attachment);
+
+    ws.send(buildJoinedMessage(player));
+    this.broadcast(buildPlayerJoinedMessage(player), ws);
+  }
+
+  private async handleRejoin(ws: WebSocket, playerId: string): Promise<void> {
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    const player = room?.players[playerId];
+    if (!room || !player) {
+      ws.send(buildErrorMessage("unknown_player", "No player found for this id — join again."));
+      return;
+    }
+
+    player.connected = true;
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    const attachment: WebSocketAttachment = { playerId: player.id };
+    ws.serializeAttachment(attachment);
+
+    ws.send(buildJoinedMessage(player));
+    this.broadcast(buildPlayerJoinedMessage(player), ws);
+  }
+
+  private broadcast(message: string, exclude?: WebSocket): void {
     for (const socket of this.ctx.getWebSockets()) {
-      socket.send(pong);
+      if (socket === exclude) continue;
+      socket.send(message);
     }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+    const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
+    if (attachment) {
+      const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+      const player = room?.players[attachment.playerId];
+      if (room && player) {
+        player.connected = false;
+        await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+        this.broadcast(buildPlayerLeftMessage(player));
+      }
+    }
+
     ws.close(code, reason);
   }
 
