@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from "./routes/index";
 import { Route as DebugRouteImport } from "./routes/debug";
 import { Route as DebugWsRouteImport } from "./routes/debug-ws";
 import { Route as TokensRouteImport } from "./routes/tokens";
+import { Route as JoinCodeRouteImport } from "./routes/join.$code";
+import { Route as RoomCodeRouteImport } from "./routes/room.$code";
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -34,18 +36,32 @@ const TokensRoute = TokensRouteImport.update({
   path: "/tokens",
   getParentRoute: () => rootRouteImport,
 } as any);
+const JoinCodeRoute = JoinCodeRouteImport.update({
+  id: "/join/$code",
+  path: "/join/$code",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const RoomCodeRoute = RoomCodeRouteImport.update({
+  id: "/room/$code",
+  path: "/room/$code",
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/debug": typeof DebugRoute;
   "/debug-ws": typeof DebugWsRoute;
   "/tokens": typeof TokensRoute;
+  "/join/$code": typeof JoinCodeRoute;
+  "/room/$code": typeof RoomCodeRoute;
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/debug": typeof DebugRoute;
   "/debug-ws": typeof DebugWsRoute;
   "/tokens": typeof TokensRoute;
+  "/join/$code": typeof JoinCodeRoute;
+  "/room/$code": typeof RoomCodeRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -53,13 +69,15 @@ export interface FileRoutesById {
   "/debug": typeof DebugRoute;
   "/debug-ws": typeof DebugWsRoute;
   "/tokens": typeof TokensRoute;
+  "/join/$code": typeof JoinCodeRoute;
+  "/room/$code": typeof RoomCodeRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: "/" | "/debug" | "/debug-ws" | "/tokens";
+  fullPaths: "/" | "/debug" | "/debug-ws" | "/tokens" | "/join/$code" | "/room/$code";
   fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/debug" | "/debug-ws" | "/tokens";
-  id: "__root__" | "/" | "/debug" | "/debug-ws" | "/tokens";
+  to: "/" | "/debug" | "/debug-ws" | "/tokens" | "/join/$code" | "/room/$code";
+  id: "__root__" | "/" | "/debug" | "/debug-ws" | "/tokens" | "/join/$code" | "/room/$code";
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -67,6 +85,8 @@ export interface RootRouteChildren {
   DebugRoute: typeof DebugRoute;
   DebugWsRoute: typeof DebugWsRoute;
   TokensRoute: typeof TokensRoute;
+  JoinCodeRoute: typeof JoinCodeRoute;
+  RoomCodeRoute: typeof RoomCodeRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -99,6 +119,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof TokensRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/join/$code": {
+      id: "/join/$code";
+      path: "/join/$code";
+      fullPath: "/join/$code";
+      preLoaderRoute: typeof JoinCodeRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/room/$code": {
+      id: "/room/$code";
+      path: "/room/$code";
+      fullPath: "/room/$code";
+      preLoaderRoute: typeof RoomCodeRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -107,6 +141,8 @@ const rootRouteChildren: RootRouteChildren = {
   DebugRoute: DebugRoute,
   DebugWsRoute: DebugWsRoute,
   TokensRoute: TokensRoute,
+  JoinCodeRoute: JoinCodeRoute,
+  RoomCodeRoute: RoomCodeRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

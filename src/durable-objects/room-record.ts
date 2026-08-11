@@ -8,6 +8,7 @@ export type InitRoomRequest = z.infer<typeof InitRoomRequest>;
 export interface RoomRecord {
   code: string;
   createdAt: number;
+  hostId: string | null;
   players: Record<string, Player>;
 }
 

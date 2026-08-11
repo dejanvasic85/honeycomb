@@ -7,6 +7,7 @@ import {
   buildPlayerJoinedMessage,
   buildPlayerLeftMessage,
   buildPongMessage,
+  buildStateMessage,
 } from "./messages";
 import { disambiguateName } from "./player";
 import type { Player } from "./player";
@@ -77,7 +78,12 @@ export class RoomDO extends DurableObject {
       return Response.json({ error: "room_exists" }, { status: 409 });
     }
 
-    const room: RoomRecord = { code: parsed.data.code, createdAt: Date.now(), players: {} };
+    const room: RoomRecord = {
+      code: parsed.data.code,
+      createdAt: Date.now(),
+      hostId: null,
+      players: {},
+    };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
 
@@ -145,6 +151,7 @@ export class RoomDO extends DurableObject {
     };
 
     room.players[player.id] = player;
+    if (!room.hostId) room.hostId = player.id;
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
     const attachment: WebSocketAttachment = { playerId: player.id };
@@ -152,6 +159,7 @@ export class RoomDO extends DurableObject {
 
     ws.send(buildJoinedMessage(player));
     this.broadcast(buildPlayerJoinedMessage(player), ws);
+    this.broadcast(buildStateMessage(room));
   }
 
   private async handleRejoin(ws: WebSocket, playerId: string): Promise<void> {
@@ -170,6 +178,7 @@ export class RoomDO extends DurableObject {
 
     ws.send(buildJoinedMessage(player));
     this.broadcast(buildPlayerJoinedMessage(player), ws);
+    this.broadcast(buildStateMessage(room));
   }
 
   private broadcast(message: string, exclude?: WebSocket): void {
@@ -188,6 +197,7 @@ export class RoomDO extends DurableObject {
         player.connected = false;
         await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
         this.broadcast(buildPlayerLeftMessage(player));
+        this.broadcast(buildStateMessage(room));
       }
     }
 
