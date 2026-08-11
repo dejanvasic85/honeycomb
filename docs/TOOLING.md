@@ -282,3 +282,10 @@ run `vp install`, then `pnpm approve-builds --all` for any
   `pnpm exec wrangler deploy --temporary`) gets a real `*.workers.dev` URL on a
   throwaway account instead, good enough to prove the pipeline works but not a
   substitute for a real deploy once credentials exist.
+- **Kill the dev server before running `pnpm check`.** TanStack Router's codegen
+  rewrites `src/routeTree.gen.ts` in its own style (single quotes, no semicolons)
+  every time its file watcher runs, which fights Oxfmt's formatting on the same
+  file. If `pnpm dev` / `vp dev` is still running in the background, `pnpm check`
+  flags `routeTree.gen.ts` as unformatted even right after `vp check --fix` — the
+  watcher just re-dirties it. Stop the dev server first, then `vp check --fix`
+  once, then `pnpm check` stays green.
