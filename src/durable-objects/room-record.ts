@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { Phase } from "./phase";
 import type { Player } from "./player";
 
 export const InitRoomRequest = z.object({ code: z.string().length(6) });
@@ -10,6 +11,8 @@ export interface RoomRecord {
   createdAt: number;
   hostId: string | null;
   players: Record<string, Player>;
+  phase: Phase;
+  round: number;
 }
 
 export const ROOM_STORAGE_KEY = "room";

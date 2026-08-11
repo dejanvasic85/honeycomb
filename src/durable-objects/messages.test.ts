@@ -5,6 +5,7 @@ import {
   ServerMessage,
   buildErrorMessage,
   buildJoinedMessage,
+  buildPhaseMessage,
   buildPlayerJoinedMessage,
   buildPlayerLeftMessage,
   buildPongMessage,
@@ -38,6 +39,8 @@ const room: RoomRecord = {
   createdAt: 0,
   hostId: "p1",
   players: { p1: player, p2: otherPlayer },
+  phase: "lobby",
+  round: 0,
 };
 
 describe("ClientMessage", () => {
@@ -65,6 +68,10 @@ describe("ClientMessage", () => {
 
   it("rejects a rejoin message missing playerId", () => {
     expect(ClientMessage.safeParse({ type: "rejoin" }).success).toBe(false);
+  });
+
+  it("accepts a start message", () => {
+    expect(ClientMessage.safeParse({ type: "start" }).success).toBe(true);
   });
 
   it("rejects an unknown type", () => {
@@ -115,13 +122,15 @@ describe("buildErrorMessage", () => {
 });
 
 describe("buildStateMessage", () => {
-  it("serialises the code, hostId, and player roster", () => {
+  it("serialises the code, hostId, player roster, phase, and round", () => {
     expect(buildStateMessage(room)).toBe(
       JSON.stringify({
         type: "state",
         code: "HX7K2P",
         hostId: "p1",
         players: [player, otherPlayer],
+        phase: "lobby",
+        round: 0,
       }),
     );
   });
@@ -130,6 +139,20 @@ describe("buildStateMessage", () => {
     const hostless: RoomRecord = { ...room, hostId: null };
     const parsed: unknown = JSON.parse(buildStateMessage(hostless));
     expect(parsed).toMatchObject({ hostId: null });
+  });
+
+  it("serialises the current phase and round", () => {
+    const inRound: RoomRecord = { ...room, phase: "question", round: 1 };
+    const parsed: unknown = JSON.parse(buildStateMessage(inRound));
+    expect(parsed).toMatchObject({ phase: "question", round: 1 });
+  });
+});
+
+describe("buildPhaseMessage", () => {
+  it("serialises the phase", () => {
+    expect(buildPhaseMessage("question")).toBe(
+      JSON.stringify({ type: "phase", phase: "question" }),
+    );
   });
 });
 
@@ -160,6 +183,10 @@ describe("ServerMessage", () => {
     expect(ServerMessage.safeParse(JSON.parse(buildErrorMessage("code", "msg"))).success).toBe(
       true,
     );
+  });
+
+  it("accepts a phase message", () => {
+    expect(ServerMessage.safeParse(JSON.parse(buildPhaseMessage("reveal"))).success).toBe(true);
   });
 
   it("rejects an unknown type", () => {

@@ -5,6 +5,7 @@ import {
   ClientMessage,
   buildErrorMessage,
   buildJoinedMessage,
+  buildPhaseMessage,
   buildPlayerJoinedMessage,
   buildPlayerLeftMessage,
   buildPongMessage,
@@ -19,6 +20,7 @@ import {
   ROOM_STORAGE_KEY,
 } from "./room-record";
 import type { RoomRecord } from "./room-record";
+import { checkStart } from "./start";
 
 interface WebSocketAttachment {
   playerId: string;
@@ -89,6 +91,8 @@ export class RoomDO extends DurableObject {
       createdAt: Date.now(),
       hostId: null,
       players: {},
+      phase: "lobby",
+      round: 0,
     };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
@@ -141,6 +145,9 @@ export class RoomDO extends DurableObject {
         return;
       case "rejoin":
         await this.handleRejoin(ws, result.data.playerId);
+        return;
+      case "start":
+        await this.handleStart(ws);
         return;
     }
   }
@@ -203,6 +210,33 @@ export class RoomDO extends DurableObject {
 
     ws.send(buildJoinedMessage(player));
     this.broadcast(buildPlayerJoinedMessage(player), ws);
+    this.broadcast(buildStateMessage(room));
+  }
+
+  private async handleStart(ws: WebSocket): Promise<void> {
+    const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
+    if (!attachment) {
+      ws.send(buildErrorMessage("not_joined", "Join the room before starting the game."));
+      return;
+    }
+
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    if (!room) {
+      ws.send(buildErrorMessage("room_not_found", "No room exists for this code."));
+      return;
+    }
+
+    const rejection = checkStart(room.phase, room.hostId, attachment.playerId, room.players);
+    if (rejection) {
+      ws.send(buildErrorMessage(rejection.code, rejection.message));
+      return;
+    }
+
+    room.phase = "question";
+    room.round = 1;
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    this.broadcast(buildPhaseMessage(room.phase));
     this.broadcast(buildStateMessage(room));
   }
 
