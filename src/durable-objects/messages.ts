@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PHASES } from "./phase";
+import type { Phase } from "./phase";
 import { PlayerName } from "./player";
 import type { Player } from "./player";
 import type { RoomRecord } from "./room-record";
@@ -7,11 +9,13 @@ import type { RoomRecord } from "./room-record";
 const PingMessage = z.object({ type: z.literal("ping") });
 const JoinMessage = z.object({ type: z.literal("join"), name: PlayerName });
 const RejoinMessage = z.object({ type: z.literal("rejoin"), playerId: z.string() });
+const StartMessage = z.object({ type: z.literal("start") });
 
 export const ClientMessage = z.discriminatedUnion("type", [
   PingMessage,
   JoinMessage,
   RejoinMessage,
+  StartMessage,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -25,6 +29,8 @@ const PlayerSchema = z.object({
   connectedSince: z.number(),
 });
 
+const PhaseSchema = z.enum(PHASES);
+
 const PongMessage = z.object({ type: z.literal("pong"), wakeCount: z.number() });
 const JoinedMessage = z.object({ type: z.literal("joined"), player: PlayerSchema });
 const PlayerJoinedMessage = z.object({ type: z.literal("playerJoined"), player: PlayerSchema });
@@ -34,18 +40,22 @@ const StateMessage = z.object({
   code: z.string(),
   hostId: z.string().nullable(),
   players: z.array(PlayerSchema),
+  phase: PhaseSchema,
+  round: z.number(),
 });
+const PhaseMessage = z.object({ type: z.literal("phase"), phase: PhaseSchema });
 const ErrorMessage = z.object({ type: z.literal("error"), code: z.string(), message: z.string() });
 
-// Not yet the full RoomState snapshot from docs/SPEC.md §3 (no phase/round/
-// answers) — just enough for the lobby roster. Widens as later milestones add
-// state.
+// Not yet the full RoomState snapshot from docs/SPEC.md §3 (no currentQuestion/
+// answers/clusters) — just enough for the lobby roster plus phase. Widens as
+// later milestones add state.
 export const ServerMessage = z.discriminatedUnion("type", [
   PongMessage,
   JoinedMessage,
   PlayerJoinedMessage,
   PlayerLeftMessage,
   StateMessage,
+  PhaseMessage,
   ErrorMessage,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
@@ -66,13 +76,21 @@ export function buildPlayerLeftMessage(player: Player): string {
   return JSON.stringify({ type: "playerLeft", player });
 }
 
-export function buildStateMessage(room: Pick<RoomRecord, "code" | "hostId" | "players">): string {
+export function buildStateMessage(
+  room: Pick<RoomRecord, "code" | "hostId" | "players" | "phase" | "round">,
+): string {
   return JSON.stringify({
     type: "state",
     code: room.code,
     hostId: room.hostId,
     players: Object.values(room.players),
+    phase: room.phase,
+    round: room.round,
   });
+}
+
+export function buildPhaseMessage(phase: Phase): string {
+  return JSON.stringify({ type: "phase", phase });
 }
 
 export function buildErrorMessage(code: string, message: string): string {

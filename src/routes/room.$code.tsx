@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { ServerMessage } from "#/durable-objects/messages";
+import type { Phase } from "#/durable-objects/phase";
 import type { Player } from "#/durable-objects/player";
 import { getStartDisabledReason } from "#/lib/lobby";
 import { playerIdStorageKey, roomWsUrl } from "#/lib/room-client";
@@ -22,6 +23,8 @@ function RoomPage() {
   const [connectionLost, setConnectionLost] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
   const [hostId, setHostId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<Phase>("lobby");
+  const [round, setRound] = useState(0);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -75,6 +78,12 @@ function RoomPage() {
         case "state": {
           setPlayers(message.players);
           setHostId(message.hostId);
+          setPhase(message.phase);
+          setRound(message.round);
+          break;
+        }
+        case "phase": {
+          setPhase(message.phase);
           break;
         }
         case "playerJoined": {
@@ -117,6 +126,10 @@ function RoomPage() {
     if (!trimmed) return;
     setUiState("joining");
     socketRef.current?.send(JSON.stringify({ type: "join", name: trimmed }));
+  };
+
+  const handleStart = () => {
+    socketRef.current?.send(JSON.stringify({ type: "start" }));
   };
 
   const copyToClipboard = async (text: string, onCopied: (copied: boolean) => void) => {
@@ -173,7 +186,7 @@ function RoomPage() {
 
       {uiState === "joining" && <p>Joining…</p>}
 
-      {uiState === "lobby" && (
+      {uiState === "lobby" && phase === "lobby" && (
         <>
           <section className={styles.codeSection} aria-label="Room code">
             <p className={styles.code}>{code}</p>
@@ -235,6 +248,7 @@ function RoomPage() {
                 type="button"
                 className={styles.primaryButton}
                 disabled={startDisabledReason !== null}
+                onClick={handleStart}
               >
                 Start game
               </button>
@@ -244,6 +258,12 @@ function RoomPage() {
             <p className={styles.waiting}>Waiting for the host to start…</p>
           )}
         </>
+      )}
+
+      {uiState === "lobby" && phase !== "lobby" && (
+        <p className={styles.phaseHeading}>
+          Round {round} — {phase} phase
+        </p>
       )}
     </main>
   );
