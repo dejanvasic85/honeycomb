@@ -31,6 +31,7 @@
 
 .primaryButton,
 .secondaryButton {
+  width: 100%;
   min-height: var(--space-12);
   padding: var(--space-3) var(--space-6);
   border: var(--stroke) solid var(--ink);
@@ -42,12 +43,18 @@
   cursor: pointer;
 }
 
-.primaryButton:hover,
+.primaryButton:hover:not(:disabled),
 .secondaryButton:hover:not(:disabled) {
   background: var(--honey-3);
 }
 
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .secondaryButton {
+  width: auto;
   background: var(--paper);
 }
 
@@ -55,6 +62,12 @@
   border-color: var(--ink-muted);
   color: var(--ink-muted);
   cursor: not-allowed;
+}
+
+.error {
+  margin: var(--space-2) 0 0;
+  color: var(--sting);
+  font-size: var(--text-sm);
 }
 
 .joinForm {
