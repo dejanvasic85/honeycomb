@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { HOST_PROMOTION_DELAY_MS, pickPromotedHost } from "./host";
 import {
   ClientMessage,
   buildErrorMessage,
@@ -11,7 +12,12 @@ import {
 } from "./messages";
 import { disambiguateName } from "./player";
 import type { Player } from "./player";
-import { CLEANUP_ALARM_DELAY_MS, InitRoomRequest, ROOM_STORAGE_KEY } from "./room-record";
+import {
+  CLEANUP_ALARM_DELAY_MS,
+  EMPTY_ROOM_CLEANUP_DELAY_MS,
+  InitRoomRequest,
+  ROOM_STORAGE_KEY,
+} from "./room-record";
 import type { RoomRecord } from "./room-record";
 
 interface WebSocketAttachment {
@@ -91,9 +97,26 @@ export class RoomDO extends DurableObject {
   }
 
   async alarm(): Promise<void> {
-    // Cleanup policy TBD — see docs/SPEC.md §9. Registering the alarm now
-    // proves rooms don't live forever unmanaged; the actual GC decision
-    // (expire idle rooms? archive scores?) is deferred to #22.
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    if (!room) return;
+
+    const host = room.hostId ? room.players[room.hostId] : undefined;
+    if (host && !host.connected) {
+      const promoted = pickPromotedHost(room.players);
+      if (promoted) {
+        room.hostId = promoted;
+        await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+        this.broadcast(buildStateMessage(room));
+      }
+    }
+
+    const stillConnected = Object.values(room.players).some((player) => player.connected);
+    if (stillConnected) {
+      // Cleanup policy TBD — see docs/SPEC.md §9. Re-arming now proves rooms
+      // don't live forever unmanaged; the actual GC decision (expire idle
+      // rooms? archive scores?) is deferred to #22.
+      await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
+    }
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -148,6 +171,7 @@ export class RoomDO extends DurableObject {
       honey: 0,
       stung: false,
       joinedAtRound: 0,
+      connectedSince: Date.now(),
     };
 
     room.players[player.id] = player;
@@ -171,6 +195,7 @@ export class RoomDO extends DurableObject {
     }
 
     player.connected = true;
+    player.connectedSince = Date.now();
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
     const attachment: WebSocketAttachment = { playerId: player.id };
@@ -198,6 +223,15 @@ export class RoomDO extends DurableObject {
         await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
         this.broadcast(buildPlayerLeftMessage(player));
         this.broadcast(buildStateMessage(room));
+
+        const stillConnected = Object.values(room.players).some((p) => p.connected);
+        if (!stillConnected) {
+          // Last player gone — schedule the room for cleanup sooner than the
+          // default horizon. Actual deletion policy is still #22's job.
+          await this.ctx.storage.setAlarm(Date.now() + EMPTY_ROOM_CLEANUP_DELAY_MS);
+        } else if (player.id === room.hostId) {
+          await this.ctx.storage.setAlarm(Date.now() + HOST_PROMOTION_DELAY_MS);
+        }
       }
     }
 

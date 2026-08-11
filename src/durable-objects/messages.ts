@@ -22,6 +22,7 @@ const PlayerSchema = z.object({
   honey: z.number(),
   stung: z.boolean(),
   joinedAtRound: z.number(),
+  connectedSince: z.number(),
 });
 
 const PongMessage = z.object({ type: z.literal("pong"), wakeCount: z.number() });
