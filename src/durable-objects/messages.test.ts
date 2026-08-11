@@ -20,6 +20,7 @@ const player: Player = {
   honey: 0,
   stung: false,
   joinedAtRound: 0,
+  connectedSince: 0,
 };
 
 const otherPlayer: Player = {
@@ -29,6 +30,7 @@ const otherPlayer: Player = {
   honey: 0,
   stung: false,
   joinedAtRound: 0,
+  connectedSince: 0,
 };
 
 const room: RoomRecord = {

@@ -9,6 +9,9 @@ export interface Player {
   honey: number;
   stung: boolean;
   joinedAtRound: number;
+  // Epoch ms of the most recent join/rejoin. Used to find the
+  // longest-continuously-connected player for host promotion.
+  connectedSince: number;
 }
 
 // Appends " (2)", " (3)", ... until the name is free among existingNames.
