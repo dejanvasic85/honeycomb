@@ -35,6 +35,8 @@ const PongMessage = z.object({ type: z.literal("pong"), wakeCount: z.number() })
 const JoinedMessage = z.object({ type: z.literal("joined"), player: PlayerSchema });
 const PlayerJoinedMessage = z.object({ type: z.literal("playerJoined"), player: PlayerSchema });
 const PlayerLeftMessage = z.object({ type: z.literal("playerLeft"), player: PlayerSchema });
+const QuestionSchema = z.object({ text: z.string(), category: z.string() }).nullable();
+
 const StateMessage = z.object({
   type: z.literal("state"),
   code: z.string(),
@@ -42,13 +44,19 @@ const StateMessage = z.object({
   players: z.array(PlayerSchema),
   phase: PhaseSchema,
   round: z.number(),
+  question: QuestionSchema,
 });
 const PhaseMessage = z.object({ type: z.literal("phase"), phase: PhaseSchema });
+const QuestionMessage = z.object({
+  type: z.literal("question"),
+  text: z.string(),
+  category: z.string(),
+});
 const ErrorMessage = z.object({ type: z.literal("error"), code: z.string(), message: z.string() });
 
-// Not yet the full RoomState snapshot from docs/SPEC.md §3 (no currentQuestion/
-// answers/clusters) — just enough for the lobby roster plus phase. Widens as
-// later milestones add state.
+// Not yet the full RoomState snapshot from docs/SPEC.md §3 (no answers/
+// clusters) — just enough for the lobby roster, phase, and current question.
+// Widens as later milestones add state.
 export const ServerMessage = z.discriminatedUnion("type", [
   PongMessage,
   JoinedMessage,
@@ -56,6 +64,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
   PlayerLeftMessage,
   StateMessage,
   PhaseMessage,
+  QuestionMessage,
   ErrorMessage,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
@@ -77,7 +86,7 @@ export function buildPlayerLeftMessage(player: Player): string {
 }
 
 export function buildStateMessage(
-  room: Pick<RoomRecord, "code" | "hostId" | "players" | "phase" | "round">,
+  room: Pick<RoomRecord, "code" | "hostId" | "players" | "phase" | "round" | "currentQuestion">,
 ): string {
   return JSON.stringify({
     type: "state",
@@ -86,11 +95,18 @@ export function buildStateMessage(
     players: Object.values(room.players),
     phase: room.phase,
     round: room.round,
+    question: room.currentQuestion
+      ? { text: room.currentQuestion.text, category: room.currentQuestion.category }
+      : null,
   });
 }
 
 export function buildPhaseMessage(phase: Phase): string {
   return JSON.stringify({ type: "phase", phase });
+}
+
+export function buildQuestionMessage(text: string, category: string): string {
+  return JSON.stringify({ type: "question", text, category });
 }
 
 export function buildErrorMessage(code: string, message: string): string {

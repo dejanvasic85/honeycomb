@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Phase } from "./phase";
 import type { Player } from "./player";
+import type { Question } from "./question";
 
 export const InitRoomRequest = z.object({ code: z.string().length(6) });
 export type InitRoomRequest = z.infer<typeof InitRoomRequest>;
@@ -13,6 +14,8 @@ export interface RoomRecord {
   players: Record<string, Player>;
   phase: Phase;
   round: number;
+  currentQuestion: Question | null;
+  usedQuestionIds: string[];
 }
 
 export const ROOM_STORAGE_KEY = "room";

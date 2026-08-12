@@ -25,6 +25,7 @@ function RoomPage() {
   const [hostId, setHostId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("lobby");
   const [round, setRound] = useState(0);
+  const [question, setQuestion] = useState<{ text: string; category: string } | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -80,10 +81,15 @@ function RoomPage() {
           setHostId(message.hostId);
           setPhase(message.phase);
           setRound(message.round);
+          setQuestion(message.question);
           break;
         }
         case "phase": {
           setPhase(message.phase);
+          break;
+        }
+        case "question": {
+          setQuestion({ text: message.text, category: message.category });
           break;
         }
         case "playerJoined": {
@@ -261,9 +267,12 @@ function RoomPage() {
       )}
 
       {uiState === "lobby" && phase !== "lobby" && (
-        <p className={styles.phaseHeading}>
-          Round {round} — {phase} phase
-        </p>
+        <>
+          <p className={styles.phaseHeading}>
+            Round {round} — {phase} phase
+          </p>
+          {question && <p className={styles.questionText}>{question.text}</p>}
+        </>
       )}
     </main>
   );

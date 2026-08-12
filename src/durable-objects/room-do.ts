@@ -9,10 +9,13 @@ import {
   buildPlayerJoinedMessage,
   buildPlayerLeftMessage,
   buildPongMessage,
+  buildQuestionMessage,
   buildStateMessage,
 } from "./messages";
 import { disambiguateName } from "./player";
 import type { Player } from "./player";
+import { pickQuestion } from "./question";
+import type { Question } from "./question";
 import {
   CLEANUP_ALARM_DELAY_MS,
   EMPTY_ROOM_CLEANUP_DELAY_MS,
@@ -93,6 +96,8 @@ export class RoomDO extends DurableObject {
       players: {},
       phase: "lobby",
       round: 0,
+      currentQuestion: null,
+      usedQuestionIds: [],
     };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
@@ -234,10 +239,31 @@ export class RoomDO extends DurableObject {
 
     room.phase = "question";
     room.round = 1;
+
+    const question = await this.selectQuestion(room.usedQuestionIds);
+    if (question) {
+      room.currentQuestion = question;
+      room.usedQuestionIds.push(question.id);
+    }
+
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
     this.broadcast(buildPhaseMessage(room.phase));
+    if (question) {
+      this.broadcast(buildQuestionMessage(question.text, question.category));
+    }
     this.broadcast(buildStateMessage(room));
+  }
+
+  // Queries D1 for the approved question pool and picks one avoiding
+  // usedQuestionIds. Only ~20 rows for now (#11) — cheap to fetch in full
+  // each round rather than pushing exclusion logic into SQL.
+  private async selectQuestion(usedQuestionIds: readonly string[]): Promise<Question | null> {
+    const { results } = await this.env.DB.prepare(
+      "SELECT id, text, category FROM questions WHERE approved = 1",
+    ).all<Question>();
+
+    return pickQuestion(results, usedQuestionIds);
   }
 
   private broadcast(message: string, exclude?: WebSocket): void {
