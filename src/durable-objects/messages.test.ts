@@ -9,6 +9,7 @@ import {
   buildPlayerJoinedMessage,
   buildPlayerLeftMessage,
   buildPongMessage,
+  buildQuestionMessage,
   buildStateMessage,
 } from "./messages";
 import type { Player } from "./player";
@@ -41,6 +42,8 @@ const room: RoomRecord = {
   players: { p1: player, p2: otherPlayer },
   phase: "lobby",
   round: 0,
+  currentQuestion: null,
+  usedQuestionIds: [],
 };
 
 describe("ClientMessage", () => {
@@ -122,7 +125,7 @@ describe("buildErrorMessage", () => {
 });
 
 describe("buildStateMessage", () => {
-  it("serialises the code, hostId, player roster, phase, and round", () => {
+  it("serialises the code, hostId, player roster, phase, round, and question", () => {
     expect(buildStateMessage(room)).toBe(
       JSON.stringify({
         type: "state",
@@ -131,6 +134,7 @@ describe("buildStateMessage", () => {
         players: [player, otherPlayer],
         phase: "lobby",
         round: 0,
+        question: null,
       }),
     );
   });
@@ -146,12 +150,33 @@ describe("buildStateMessage", () => {
     const parsed: unknown = JSON.parse(buildStateMessage(inRound));
     expect(parsed).toMatchObject({ phase: "question", round: 1 });
   });
+
+  it("serialises the current question", () => {
+    const withQuestion: RoomRecord = {
+      ...room,
+      currentQuestion: {
+        id: "food-pizza-topping",
+        text: "Name a pizza topping.",
+        category: "food",
+      },
+    };
+    const parsed: unknown = JSON.parse(buildStateMessage(withQuestion));
+    expect(parsed).toMatchObject({ question: { text: "Name a pizza topping.", category: "food" } });
+  });
 });
 
 describe("buildPhaseMessage", () => {
   it("serialises the phase", () => {
     expect(buildPhaseMessage("question")).toBe(
       JSON.stringify({ type: "phase", phase: "question" }),
+    );
+  });
+});
+
+describe("buildQuestionMessage", () => {
+  it("serialises the text and category", () => {
+    expect(buildQuestionMessage("Name a pizza topping.", "food")).toBe(
+      JSON.stringify({ type: "question", text: "Name a pizza topping.", category: "food" }),
     );
   });
 });
@@ -187,6 +212,12 @@ describe("ServerMessage", () => {
 
   it("accepts a phase message", () => {
     expect(ServerMessage.safeParse(JSON.parse(buildPhaseMessage("reveal"))).success).toBe(true);
+  });
+
+  it("accepts a question message", () => {
+    expect(
+      ServerMessage.safeParse(JSON.parse(buildQuestionMessage("Name a topping.", "food"))).success,
+    ).toBe(true);
   });
 
   it("rejects an unknown type", () => {
