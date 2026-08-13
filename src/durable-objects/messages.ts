@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { AnswerText } from "./answer";
 import { PHASES } from "./phase";
 import type { Phase } from "./phase";
 import { PlayerName } from "./player";
@@ -10,12 +11,14 @@ const PingMessage = z.object({ type: z.literal("ping") });
 const JoinMessage = z.object({ type: z.literal("join"), name: PlayerName });
 const RejoinMessage = z.object({ type: z.literal("rejoin"), playerId: z.string() });
 const StartMessage = z.object({ type: z.literal("start") });
+const SubmitAnswerMessage = z.object({ type: z.literal("submitAnswer"), text: AnswerText });
 
 export const ClientMessage = z.discriminatedUnion("type", [
   PingMessage,
   JoinMessage,
   RejoinMessage,
   StartMessage,
+  SubmitAnswerMessage,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -60,6 +63,11 @@ const QuestionMessage = z.object({
   text: z.string(),
   category: z.string(),
 });
+const AnswerProgressMessage = z.object({
+  type: z.literal("answerProgress"),
+  answered: z.number(),
+  total: z.number(),
+});
 const ErrorMessage = z.object({ type: z.literal("error"), code: z.string(), message: z.string() });
 
 // Not yet the full RoomState snapshot from docs/SPEC.md §3 (no answers/
@@ -73,6 +81,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
   StateMessage,
   PhaseMessage,
   QuestionMessage,
+  AnswerProgressMessage,
   ErrorMessage,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
@@ -116,6 +125,10 @@ export function buildPhaseMessage(phase: Phase): string {
 
 export function buildQuestionMessage(text: string, category: string): string {
   return JSON.stringify({ type: "question", text, category });
+}
+
+export function buildAnswerProgressMessage(answered: number, total: number): string {
+  return JSON.stringify({ type: "answerProgress", answered, total });
 }
 
 export function buildErrorMessage(code: string, message: string): string {

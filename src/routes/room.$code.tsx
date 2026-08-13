@@ -2,6 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import type { AnswerProgress } from "#/durable-objects/answer";
 import { ServerMessage } from "#/durable-objects/messages";
 import type { Phase } from "#/durable-objects/phase";
 import type { Player } from "#/durable-objects/player";
@@ -28,13 +29,18 @@ function RoomPage() {
   const [question, setQuestion] = useState<{ text: string; category: string } | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
+  const [answerInput, setAnswerInput] = useState("");
+  const [hasSubmittedAnswer, setHasSubmittedAnswer] = useState(false);
+  const [answerProgress, setAnswerProgress] = useState<AnswerProgress | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const socketRef = useRef<WebSocket | null>(null);
   const reachedRoomRef = useRef(false);
+  const myPlayerIdRef = useRef<string | null>(null);
   const nameInputId = useId();
+  const answerInputId = useId();
 
   useEffect(() => {
     setUiState("connecting");
@@ -71,6 +77,7 @@ function RoomPage() {
         case "joined": {
           reachedRoomRef.current = true;
           localStorage.setItem(playerIdStorageKey(code), message.player.id);
+          myPlayerIdRef.current = message.player.id;
           setMyPlayerId(message.player.id);
           setUiState("lobby");
           setConnectionLost(false);
@@ -82,6 +89,16 @@ function RoomPage() {
           setPhase(message.phase);
           setRound(message.round);
           setQuestion(message.question);
+          const myAnswer = myPlayerIdRef.current
+            ? message.answers[myPlayerIdRef.current]
+            : undefined;
+          if (myAnswer) {
+            setHasSubmittedAnswer(true);
+            // Only hydrate the input if the player hasn't started editing —
+            // avoids clobbering an in-progress edit when someone else's
+            // submission triggers a fresh state broadcast.
+            setAnswerInput((prev) => (prev === "" ? myAnswer.text : prev));
+          }
           break;
         }
         case "phase": {
@@ -90,6 +107,13 @@ function RoomPage() {
         }
         case "question": {
           setQuestion({ text: message.text, category: message.category });
+          setAnswerInput("");
+          setHasSubmittedAnswer(false);
+          setAnswerProgress(null);
+          break;
+        }
+        case "answerProgress": {
+          setAnswerProgress({ answered: message.answered, total: message.total });
           break;
         }
         case "playerJoined": {
@@ -136,6 +160,13 @@ function RoomPage() {
 
   const handleStart = () => {
     socketRef.current?.send(JSON.stringify({ type: "start" }));
+  };
+
+  const handleSubmitAnswer = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = answerInput.trim();
+    if (!trimmed) return;
+    socketRef.current?.send(JSON.stringify({ type: "submitAnswer", text: trimmed }));
   };
 
   const copyToClipboard = async (text: string, onCopied: (copied: boolean) => void) => {
@@ -266,7 +297,48 @@ function RoomPage() {
         </>
       )}
 
-      {uiState === "lobby" && phase !== "lobby" && (
+      {uiState === "lobby" && phase === "answering" && (
+        <section className={styles.answeringSection} aria-label="Answer the question">
+          <p className={styles.phaseHeading}>Round {round}</p>
+          {question && <p className={styles.questionText}>{question.text}</p>}
+
+          <form className={styles.nameForm} onSubmit={handleSubmitAnswer}>
+            <label htmlFor={answerInputId} className={styles.nameLabel}>
+              Your answer
+            </label>
+            <input
+              id={answerInputId}
+              className={styles.nameInput}
+              type="text"
+              maxLength={100}
+              autoComplete="off"
+              value={answerInput}
+              onChange={(event) => setAnswerInput(event.target.value)}
+            />
+            <button
+              type="submit"
+              className={styles.primaryButton}
+              disabled={answerInput.trim() === ""}
+            >
+              {hasSubmittedAnswer ? "Update answer" : "Submit answer"}
+            </button>
+          </form>
+
+          {hasSubmittedAnswer && (
+            <p className={styles.waiting}>
+              Answer submitted — you can change it until everyone's answered.
+            </p>
+          )}
+
+          {answerProgress && (
+            <p className={styles.startReason} aria-live="polite">
+              {answerProgress.answered} of {answerProgress.total} answered
+            </p>
+          )}
+        </section>
+      )}
+
+      {uiState === "lobby" && phase !== "lobby" && phase !== "answering" && (
         <>
           <p className={styles.phaseHeading}>
             Round {round} — {phase} phase

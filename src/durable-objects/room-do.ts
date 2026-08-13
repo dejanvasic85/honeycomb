@@ -1,8 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { computeAnswerProgress } from "./answer";
+import type { Answer } from "./answer";
 import { HOST_PROMOTION_DELAY_MS, pickPromotedHost } from "./host";
 import {
   ClientMessage,
+  buildAnswerProgressMessage,
   buildErrorMessage,
   buildJoinedMessage,
   buildPhaseMessage,
@@ -25,6 +28,7 @@ import {
 import type { RoomRecord } from "./room-record";
 import { sanitiseFor } from "./sanitise";
 import { checkStart } from "./start";
+import { checkSubmitAnswer } from "./submit-answer";
 
 interface WebSocketAttachment {
   playerId: string;
@@ -156,6 +160,9 @@ export class RoomDO extends DurableObject {
       case "start":
         await this.handleStart(ws);
         return;
+      case "submitAnswer":
+        await this.handleSubmitAnswer(ws, result.data.text);
+        return;
     }
   }
 
@@ -217,6 +224,7 @@ export class RoomDO extends DurableObject {
 
     ws.send(buildJoinedMessage(player));
     this.broadcast(buildPlayerJoinedMessage(player), ws);
+    if (room.phase === "answering") this.broadcastAnswerProgress(room);
     this.broadcastState(room);
   }
 
@@ -248,13 +256,55 @@ export class RoomDO extends DurableObject {
       room.usedQuestionIds.push(question.id);
     }
 
-    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
-
     this.broadcast(buildPhaseMessage(room.phase));
     if (question) {
       this.broadcast(buildQuestionMessage(question.text, question.category));
     }
+
+    // No read-time delay yet — the answering-phase timer is #18. Move
+    // straight into answering so submitAnswer (#14) has a phase to accept
+    // answers in.
+    room.phase = "answering";
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    this.broadcast(buildPhaseMessage(room.phase));
+    this.broadcastAnswerProgress(room);
     this.broadcastState(room);
+  }
+
+  private async handleSubmitAnswer(ws: WebSocket, text: string): Promise<void> {
+    const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
+    if (!attachment) {
+      ws.send(buildErrorMessage("not_joined", "Join the room before answering."));
+      return;
+    }
+
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    if (!room) {
+      ws.send(buildErrorMessage("room_not_found", "No room exists for this code."));
+      return;
+    }
+
+    const rejection = checkSubmitAnswer(room.phase, attachment.playerId, room.players);
+    if (rejection) {
+      ws.send(buildErrorMessage(rejection.code, rejection.message));
+      return;
+    }
+
+    const answer: Answer = { playerId: attachment.playerId, text, submittedAt: Date.now() };
+    room.answers[attachment.playerId] = answer;
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    this.broadcastAnswerProgress(room);
+    this.broadcastState(room);
+  }
+
+  // Broadcasts the same { answered, total } tuple to everyone — unlike state,
+  // this carries no answer text, so it's safe to send identically to all
+  // sockets rather than routing through sanitiseFor().
+  private broadcastAnswerProgress(room: RoomRecord): void {
+    const { answered, total } = computeAnswerProgress(room.players, room.answers);
+    this.broadcast(buildAnswerProgressMessage(answered, total));
   }
 
   // Queries D1 for the approved question pool and picks one avoiding
@@ -295,6 +345,7 @@ export class RoomDO extends DurableObject {
         player.connected = false;
         await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
         this.broadcast(buildPlayerLeftMessage(player));
+        if (room.phase === "answering") this.broadcastAnswerProgress(room);
         this.broadcastState(room);
 
         const stillConnected = Object.values(room.players).some((p) => p.connected);
