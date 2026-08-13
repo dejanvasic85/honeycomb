@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { Answer } from "./answer";
 import type { Phase } from "./phase";
 import type { Player } from "./player";
 import type { Question } from "./question";
@@ -16,6 +17,9 @@ export interface RoomRecord {
   round: number;
   currentQuestion: Question | null;
   usedQuestionIds: string[];
+  // Keyed by playerId. NEVER serialise this directly — route every outbound
+  // state message through sanitiseFor() (docs/SPEC.md §4).
+  answers: Record<string, Answer>;
 }
 
 export const ROOM_STORAGE_KEY = "room";

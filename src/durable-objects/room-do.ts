@@ -23,6 +23,7 @@ import {
   ROOM_STORAGE_KEY,
 } from "./room-record";
 import type { RoomRecord } from "./room-record";
+import { sanitiseFor } from "./sanitise";
 import { checkStart } from "./start";
 
 interface WebSocketAttachment {
@@ -98,6 +99,7 @@ export class RoomDO extends DurableObject {
       round: 0,
       currentQuestion: null,
       usedQuestionIds: [],
+      answers: {},
     };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
@@ -115,7 +117,7 @@ export class RoomDO extends DurableObject {
       if (promoted) {
         room.hostId = promoted;
         await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
-        this.broadcast(buildStateMessage(room));
+        this.broadcastState(room);
       }
     }
 
@@ -195,7 +197,7 @@ export class RoomDO extends DurableObject {
 
     ws.send(buildJoinedMessage(player));
     this.broadcast(buildPlayerJoinedMessage(player), ws);
-    this.broadcast(buildStateMessage(room));
+    this.broadcastState(room);
   }
 
   private async handleRejoin(ws: WebSocket, playerId: string): Promise<void> {
@@ -215,7 +217,7 @@ export class RoomDO extends DurableObject {
 
     ws.send(buildJoinedMessage(player));
     this.broadcast(buildPlayerJoinedMessage(player), ws);
-    this.broadcast(buildStateMessage(room));
+    this.broadcastState(room);
   }
 
   private async handleStart(ws: WebSocket): Promise<void> {
@@ -252,7 +254,7 @@ export class RoomDO extends DurableObject {
     if (question) {
       this.broadcast(buildQuestionMessage(question.text, question.category));
     }
-    this.broadcast(buildStateMessage(room));
+    this.broadcastState(room);
   }
 
   // Queries D1 for the approved question pool and picks one avoiding
@@ -273,6 +275,17 @@ export class RoomDO extends DurableObject {
     }
   }
 
+  // Sends each socket its own sanitised view of `room` — never the same
+  // `state` payload to everyone, since answers must stay hidden pre-reveal
+  // (docs/SPEC.md §4).
+  private broadcastState(room: RoomRecord): void {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment: WebSocketAttachment | null = socket.deserializeAttachment();
+      if (!attachment) continue;
+      socket.send(buildStateMessage(sanitiseFor(attachment.playerId, room)));
+    }
+  }
+
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
     const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
     if (attachment) {
@@ -282,7 +295,7 @@ export class RoomDO extends DurableObject {
         player.connected = false;
         await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
         this.broadcast(buildPlayerLeftMessage(player));
-        this.broadcast(buildStateMessage(room));
+        this.broadcastState(room);
 
         const stillConnected = Object.values(room.players).some((p) => p.connected);
         if (!stillConnected) {

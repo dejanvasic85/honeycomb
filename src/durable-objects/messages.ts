@@ -4,7 +4,7 @@ import { PHASES } from "./phase";
 import type { Phase } from "./phase";
 import { PlayerName } from "./player";
 import type { Player } from "./player";
-import type { RoomRecord } from "./room-record";
+import type { SanitisedRoom } from "./sanitise";
 
 const PingMessage = z.object({ type: z.literal("ping") });
 const JoinMessage = z.object({ type: z.literal("join"), name: PlayerName });
@@ -36,6 +36,11 @@ const JoinedMessage = z.object({ type: z.literal("joined"), player: PlayerSchema
 const PlayerJoinedMessage = z.object({ type: z.literal("playerJoined"), player: PlayerSchema });
 const PlayerLeftMessage = z.object({ type: z.literal("playerLeft"), player: PlayerSchema });
 const QuestionSchema = z.object({ text: z.string(), category: z.string() }).nullable();
+const AnswerSchema = z.object({
+  playerId: z.string(),
+  text: z.string(),
+  submittedAt: z.number(),
+});
 
 const StateMessage = z.object({
   type: z.literal("state"),
@@ -45,6 +50,9 @@ const StateMessage = z.object({
   phase: PhaseSchema,
   round: z.number(),
   question: QuestionSchema,
+  // Pre-sanitised by sanitiseFor() — only ever the recipient's own answer
+  // until phase reaches "reveal". Never build this from a raw RoomRecord.
+  answers: z.record(z.string(), AnswerSchema),
 });
 const PhaseMessage = z.object({ type: z.literal("phase"), phase: PhaseSchema });
 const QuestionMessage = z.object({
@@ -85,9 +93,9 @@ export function buildPlayerLeftMessage(player: Player): string {
   return JSON.stringify({ type: "playerLeft", player });
 }
 
-export function buildStateMessage(
-  room: Pick<RoomRecord, "code" | "hostId" | "players" | "phase" | "round" | "currentQuestion">,
-): string {
+// Takes the output of sanitiseFor(), never a raw RoomRecord — see
+// docs/SPEC.md §4's sanitisation rule.
+export function buildStateMessage(room: SanitisedRoom): string {
   return JSON.stringify({
     type: "state",
     code: room.code,
@@ -98,6 +106,7 @@ export function buildStateMessage(
     question: room.currentQuestion
       ? { text: room.currentQuestion.text, category: room.currentQuestion.category }
       : null,
+    answers: room.answers,
   });
 }
 

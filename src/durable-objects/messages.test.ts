@@ -13,7 +13,7 @@ import {
   buildStateMessage,
 } from "./messages";
 import type { Player } from "./player";
-import type { RoomRecord } from "./room-record";
+import type { SanitisedRoom } from "./sanitise";
 
 const player: Player = {
   id: "p1",
@@ -35,15 +35,15 @@ const otherPlayer: Player = {
   connectedSince: 0,
 };
 
-const room: RoomRecord = {
+const room: SanitisedRoom = {
   code: "HX7K2P",
-  createdAt: 0,
   hostId: "p1",
   players: { p1: player, p2: otherPlayer },
   phase: "lobby",
   round: 0,
   currentQuestion: null,
-  usedQuestionIds: [],
+  answers: {},
+  __sanitised: true,
 };
 
 describe("ClientMessage", () => {
@@ -125,7 +125,7 @@ describe("buildErrorMessage", () => {
 });
 
 describe("buildStateMessage", () => {
-  it("serialises the code, hostId, player roster, phase, round, and question", () => {
+  it("serialises the code, hostId, player roster, phase, round, question, and answers", () => {
     expect(buildStateMessage(room)).toBe(
       JSON.stringify({
         type: "state",
@@ -135,24 +135,25 @@ describe("buildStateMessage", () => {
         phase: "lobby",
         round: 0,
         question: null,
+        answers: {},
       }),
     );
   });
 
   it("serialises a null hostId", () => {
-    const hostless: RoomRecord = { ...room, hostId: null };
+    const hostless: SanitisedRoom = { ...room, hostId: null };
     const parsed: unknown = JSON.parse(buildStateMessage(hostless));
     expect(parsed).toMatchObject({ hostId: null });
   });
 
   it("serialises the current phase and round", () => {
-    const inRound: RoomRecord = { ...room, phase: "question", round: 1 };
+    const inRound: SanitisedRoom = { ...room, phase: "question", round: 1 };
     const parsed: unknown = JSON.parse(buildStateMessage(inRound));
     expect(parsed).toMatchObject({ phase: "question", round: 1 });
   });
 
   it("serialises the current question", () => {
-    const withQuestion: RoomRecord = {
+    const withQuestion: SanitisedRoom = {
       ...room,
       currentQuestion: {
         id: "food-pizza-topping",
@@ -162,6 +163,17 @@ describe("buildStateMessage", () => {
     };
     const parsed: unknown = JSON.parse(buildStateMessage(withQuestion));
     expect(parsed).toMatchObject({ question: { text: "Name a pizza topping.", category: "food" } });
+  });
+
+  it("serialises the caller's own sanitised answer", () => {
+    const withAnswer: SanitisedRoom = {
+      ...room,
+      answers: { p1: { playerId: "p1", text: "Pepperoni", submittedAt: 0 } },
+    };
+    const parsed: unknown = JSON.parse(buildStateMessage(withAnswer));
+    expect(parsed).toMatchObject({
+      answers: { p1: { playerId: "p1", text: "Pepperoni", submittedAt: 0 } },
+    });
   });
 });
 
