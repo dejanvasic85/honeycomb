@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Answer } from "./answer";
+import type { Cluster } from "./cluster";
 import type { Phase } from "./phase";
 import type { Player } from "./player";
 import type { Question } from "./question";
@@ -20,6 +21,9 @@ export interface RoomRecord {
   // Keyed by playerId. NEVER serialise this directly — route every outbound
   // state message through sanitiseFor() (docs/SPEC.md §4).
   answers: Record<string, Answer>;
+  // Set once clusterAnswers() runs on entering `judging`; null before then
+  // and at the start of every new round.
+  clusters: Cluster[] | null;
 }
 
 export const ROOM_STORAGE_KEY = "room";

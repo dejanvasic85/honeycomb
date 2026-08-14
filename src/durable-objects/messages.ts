@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { AnswerText } from "./answer";
+import type { Cluster } from "./cluster";
 import { PHASES } from "./phase";
 import type { Phase } from "./phase";
 import { PlayerName } from "./player";
@@ -45,6 +46,12 @@ const AnswerSchema = z.object({
   submittedAt: z.number(),
 });
 
+const ClusterSchema = z.object({
+  id: z.string(),
+  canonical: z.string(),
+  playerIds: z.array(z.string()),
+});
+
 const StateMessage = z.object({
   type: z.literal("state"),
   code: z.string(),
@@ -56,6 +63,7 @@ const StateMessage = z.object({
   // Pre-sanitised by sanitiseFor() — only ever the recipient's own answer
   // until phase reaches "reveal". Never build this from a raw RoomRecord.
   answers: z.record(z.string(), AnswerSchema),
+  clusters: z.array(ClusterSchema).nullable(),
 });
 const PhaseMessage = z.object({ type: z.literal("phase"), phase: PhaseSchema });
 const QuestionMessage = z.object({
@@ -68,11 +76,18 @@ const AnswerProgressMessage = z.object({
   answered: z.number(),
   total: z.number(),
 });
+// Sent once, on entering `reveal`. Safe to broadcast identically to every
+// socket — unlike `state`, every answer is public by this phase
+// (docs/SPEC.md §4).
+const RevealMessage = z.object({
+  type: z.literal("reveal"),
+  clusters: z.array(ClusterSchema),
+  answersByPlayer: z.record(z.string(), z.string()),
+});
 const ErrorMessage = z.object({ type: z.literal("error"), code: z.string(), message: z.string() });
 
-// Not yet the full RoomState snapshot from docs/SPEC.md §3 (no answers/
-// clusters) — just enough for the lobby roster, phase, and current question.
-// Widens as later milestones add state.
+// Not yet the full RoomState snapshot from docs/SPEC.md §3 (no scores yet) —
+// widens as later milestones add state.
 export const ServerMessage = z.discriminatedUnion("type", [
   PongMessage,
   JoinedMessage,
@@ -82,6 +97,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
   PhaseMessage,
   QuestionMessage,
   AnswerProgressMessage,
+  RevealMessage,
   ErrorMessage,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
@@ -116,6 +132,7 @@ export function buildStateMessage(room: SanitisedRoom): string {
       ? { text: room.currentQuestion.text, category: room.currentQuestion.category }
       : null,
     answers: room.answers,
+    clusters: room.clusters,
   });
 }
 
@@ -129,6 +146,13 @@ export function buildQuestionMessage(text: string, category: string): string {
 
 export function buildAnswerProgressMessage(answered: number, total: number): string {
   return JSON.stringify({ type: "answerProgress", answered, total });
+}
+
+export function buildRevealMessage(
+  clusters: Cluster[],
+  answersByPlayer: Record<string, string>,
+): string {
+  return JSON.stringify({ type: "reveal", clusters, answersByPlayer });
 }
 
 export function buildErrorMessage(code: string, message: string): string {
