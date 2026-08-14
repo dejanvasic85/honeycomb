@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   ClientMessage,
   ServerMessage,
+  buildAnswerProgressMessage,
   buildErrorMessage,
   buildJoinedMessage,
   buildPhaseMessage,
@@ -75,6 +76,18 @@ describe("ClientMessage", () => {
 
   it("accepts a start message", () => {
     expect(ClientMessage.safeParse({ type: "start" }).success).toBe(true);
+  });
+
+  it("accepts a submitAnswer message and trims the text", () => {
+    const result = ClientMessage.safeParse({ type: "submitAnswer", text: "  Pepperoni  " });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.type === "submitAnswer" && result.data.text).toBe(
+      "Pepperoni",
+    );
+  });
+
+  it("rejects a submitAnswer message with an empty answer", () => {
+    expect(ClientMessage.safeParse({ type: "submitAnswer", text: "   " }).success).toBe(false);
   });
 
   it("rejects an unknown type", () => {
@@ -193,6 +206,14 @@ describe("buildQuestionMessage", () => {
   });
 });
 
+describe("buildAnswerProgressMessage", () => {
+  it("serialises the answered and total counts", () => {
+    expect(buildAnswerProgressMessage(2, 5)).toBe(
+      JSON.stringify({ type: "answerProgress", answered: 2, total: 5 }),
+    );
+  });
+});
+
 describe("ServerMessage", () => {
   it("accepts a state message", () => {
     expect(ServerMessage.safeParse(JSON.parse(buildStateMessage(room))).success).toBe(true);
@@ -230,6 +251,12 @@ describe("ServerMessage", () => {
     expect(
       ServerMessage.safeParse(JSON.parse(buildQuestionMessage("Name a topping.", "food"))).success,
     ).toBe(true);
+  });
+
+  it("accepts an answerProgress message", () => {
+    expect(ServerMessage.safeParse(JSON.parse(buildAnswerProgressMessage(1, 3))).success).toBe(
+      true,
+    );
   });
 
   it("rejects an unknown type", () => {
