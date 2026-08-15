@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 
 import { computeAnswerProgress } from "./answer";
 import type { Answer } from "./answer";
+import { clusterAnswers } from "./cluster";
 import { HOST_PROMOTION_DELAY_MS, pickPromotedHost } from "./host";
 import {
   ClientMessage,
@@ -13,6 +14,7 @@ import {
   buildPlayerLeftMessage,
   buildPongMessage,
   buildQuestionMessage,
+  buildRevealMessage,
   buildStateMessage,
 } from "./messages";
 import { disambiguateName } from "./player";
@@ -104,6 +106,7 @@ export class RoomDO extends DurableObject {
       currentQuestion: null,
       usedQuestionIds: [],
       answers: {},
+      clusters: null,
     };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
@@ -296,6 +299,37 @@ export class RoomDO extends DurableObject {
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
     this.broadcastAnswerProgress(room);
+
+    const progress = computeAnswerProgress(room.players, room.answers);
+    if (progress.answered === progress.total && progress.total > 0) {
+      await this.advanceToReveal(room);
+      return;
+    }
+
+    this.broadcastState(room);
+  }
+
+  // Every connected player has answered — advance answering -> judging ->
+  // reveal in one step. v0 clustering (#15) is synchronous, so judging has
+  // no real work to do yet; the intermediate phase broadcast still fires so
+  // clients' phase handling is exercised the same way it will be once #20
+  // makes judging an actual async LLM call.
+  private async advanceToReveal(room: RoomRecord): Promise<void> {
+    room.phase = "judging";
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+    this.broadcast(buildPhaseMessage(room.phase));
+
+    const clusters = clusterAnswers(room.answers);
+    room.clusters = clusters;
+    room.phase = "reveal";
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    this.broadcast(buildPhaseMessage(room.phase));
+    const answersByPlayer: Record<string, string> = {};
+    for (const answer of Object.values(room.answers)) {
+      answersByPlayer[answer.playerId] = answer.text;
+    }
+    this.broadcast(buildRevealMessage(clusters, answersByPlayer));
     this.broadcastState(room);
   }
 

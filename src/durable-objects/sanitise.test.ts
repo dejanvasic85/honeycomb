@@ -43,6 +43,7 @@ const answeringRoom: RoomRecord = {
   currentQuestion: { id: "q1", text: "Name a pizza topping.", category: "food" },
   usedQuestionIds: ["q1"],
   answers: threeAnswers,
+  clusters: null,
 };
 
 describe("sanitiseFor", () => {

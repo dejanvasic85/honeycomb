@@ -1,4 +1,5 @@
 import type { Answer } from "./answer";
+import type { Cluster } from "./cluster";
 import type { Phase } from "./phase";
 import type { Player } from "./player";
 import type { Question } from "./question";
@@ -16,6 +17,7 @@ export interface SanitisedRoom {
   round: number;
   currentQuestion: Question | null;
   answers: Record<string, Answer>;
+  clusters: Cluster[] | null;
   // Nominal brand: RoomRecord happens to structurally satisfy every field
   // above, so without this a raw unsanitised RoomRecord would type-check as
   // a SanitisedRoom and slip straight into buildStateMessage. Only
@@ -44,6 +46,7 @@ export function sanitiseFor(playerId: string, room: RoomRecord): SanitisedRoom {
     round: room.round,
     currentQuestion: room.currentQuestion,
     answers,
+    clusters: room.clusters,
     __sanitised: true,
   };
 }

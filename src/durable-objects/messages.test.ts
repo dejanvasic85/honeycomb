@@ -11,6 +11,7 @@ import {
   buildPlayerLeftMessage,
   buildPongMessage,
   buildQuestionMessage,
+  buildRevealMessage,
   buildStateMessage,
 } from "./messages";
 import type { Player } from "./player";
@@ -44,6 +45,7 @@ const room: SanitisedRoom = {
   round: 0,
   currentQuestion: null,
   answers: {},
+  clusters: null,
   __sanitised: true,
 };
 
@@ -149,6 +151,7 @@ describe("buildStateMessage", () => {
         round: 0,
         question: null,
         answers: {},
+        clusters: null,
       }),
     );
   });
@@ -188,6 +191,17 @@ describe("buildStateMessage", () => {
       answers: { p1: { playerId: "p1", text: "Pepperoni", submittedAt: 0 } },
     });
   });
+
+  it("serialises the clusters once set", () => {
+    const withClusters: SanitisedRoom = {
+      ...room,
+      clusters: [{ id: "c1", canonical: "Pepperoni", playerIds: ["p1", "p2"] }],
+    };
+    const parsed: unknown = JSON.parse(buildStateMessage(withClusters));
+    expect(parsed).toMatchObject({
+      clusters: [{ id: "c1", canonical: "Pepperoni", playerIds: ["p1", "p2"] }],
+    });
+  });
 });
 
 describe("buildPhaseMessage", () => {
@@ -210,6 +224,16 @@ describe("buildAnswerProgressMessage", () => {
   it("serialises the answered and total counts", () => {
     expect(buildAnswerProgressMessage(2, 5)).toBe(
       JSON.stringify({ type: "answerProgress", answered: 2, total: 5 }),
+    );
+  });
+});
+
+describe("buildRevealMessage", () => {
+  it("serialises clusters and answersByPlayer", () => {
+    const clusters = [{ id: "c1", canonical: "Pepperoni", playerIds: ["p1", "p2"] }];
+    const answersByPlayer = { p1: "Pepperoni", p2: "pepperoni!" };
+    expect(buildRevealMessage(clusters, answersByPlayer)).toBe(
+      JSON.stringify({ type: "reveal", clusters, answersByPlayer }),
     );
   });
 });
@@ -257,6 +281,14 @@ describe("ServerMessage", () => {
     expect(ServerMessage.safeParse(JSON.parse(buildAnswerProgressMessage(1, 3))).success).toBe(
       true,
     );
+  });
+
+  it("accepts a reveal message", () => {
+    const clusters = [{ id: "c1", canonical: "Pepperoni", playerIds: ["p1"] }];
+    expect(
+      ServerMessage.safeParse(JSON.parse(buildRevealMessage(clusters, { p1: "Pepperoni" })))
+        .success,
+    ).toBe(true);
   });
 
   it("rejects an unknown type", () => {
