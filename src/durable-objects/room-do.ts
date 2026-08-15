@@ -15,8 +15,10 @@ import {
   buildPongMessage,
   buildQuestionMessage,
   buildRevealMessage,
+  buildScoresMessage,
   buildStateMessage,
 } from "./messages";
+import { checkNextRound } from "./next-round";
 import { disambiguateName } from "./player";
 import type { Player } from "./player";
 import { pickQuestion } from "./question";
@@ -29,6 +31,7 @@ import {
 } from "./room-record";
 import type { RoomRecord } from "./room-record";
 import { sanitiseFor } from "./sanitise";
+import { applyStingAndOffload, awardHoney, checkWinners } from "./score";
 import { checkStart } from "./start";
 import { checkSubmitAnswer } from "./submit-answer";
 
@@ -166,6 +169,9 @@ export class RoomDO extends DurableObject {
       case "submitAnswer":
         await this.handleSubmitAnswer(ws, result.data.text);
         return;
+      case "nextRound":
+        await this.handleNextRound(ws);
+        return;
     }
   }
 
@@ -250,8 +256,40 @@ export class RoomDO extends DurableObject {
       return;
     }
 
-    room.phase = "question";
     room.round = 1;
+    await this.beginRound(room);
+  }
+
+  private async handleNextRound(ws: WebSocket): Promise<void> {
+    const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
+    if (!attachment) {
+      ws.send(buildErrorMessage("not_joined", "Join the room before starting the next round."));
+      return;
+    }
+
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    if (!room) {
+      ws.send(buildErrorMessage("room_not_found", "No room exists for this code."));
+      return;
+    }
+
+    const rejection = checkNextRound(room.phase, room.hostId, attachment.playerId);
+    if (rejection) {
+      ws.send(buildErrorMessage(rejection.code, rejection.message));
+      return;
+    }
+
+    room.round += 1;
+    room.answers = {};
+    room.clusters = null;
+    await this.beginRound(room);
+  }
+
+  // Shared by `start` (round 1) and `nextRound` (round N+1): pick a
+  // question, broadcast it, then move straight into `answering`. No
+  // read-time delay yet — the answering-phase timer is #18.
+  private async beginRound(room: RoomRecord): Promise<void> {
+    room.phase = "question";
 
     const question = await this.selectQuestion(room.usedQuestionIds);
     if (question) {
@@ -264,9 +302,6 @@ export class RoomDO extends DurableObject {
       this.broadcast(buildQuestionMessage(question.text, question.category));
     }
 
-    // No read-time delay yet — the answering-phase timer is #18. Move
-    // straight into answering so submitAnswer (#14) has a phase to accept
-    // answers in.
     room.phase = "answering";
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
@@ -331,6 +366,37 @@ export class RoomDO extends DurableObject {
     }
     this.broadcast(buildRevealMessage(clusters, answersByPlayer));
     this.broadcastState(room);
+
+    await this.advanceToScoring(room);
+  }
+
+  // Honey/sting are awarded the moment scoring starts — "scoring" is a
+  // computed step, not a host-gated one (docs/SPEC.md §3 Phase comment:
+  // "honey awarded, sting assigned"). If awarding honey/offloading a sting
+  // produces a winner, continue straight on to `gameover` in the same turn.
+  private async advanceToScoring(room: RoomRecord): Promise<void> {
+    const clusters = room.clusters ?? [];
+    for (const playerId of awardHoney(clusters)) {
+      const player = room.players[playerId];
+      if (player) player.honey += 1;
+    }
+    room.players = applyStingAndOffload(clusters, room.players);
+
+    room.phase = "scoring";
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+
+    this.broadcast(buildPhaseMessage(room.phase));
+    const players = Object.values(room.players);
+    const stungPlayerIds = players.filter((player) => player.stung).map((player) => player.id);
+    this.broadcast(buildScoresMessage(players, stungPlayerIds));
+    this.broadcastState(room);
+
+    if (checkWinners(room.players).length > 0) {
+      room.phase = "gameover";
+      await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+      this.broadcast(buildPhaseMessage(room.phase));
+      this.broadcastState(room);
+    }
   }
 
   // Broadcasts the same { answered, total } tuple to everyone — unlike state,
