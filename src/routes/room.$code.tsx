@@ -2,11 +2,15 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { Hexagon } from "#/components/Hexagon/Hexagon";
+import { HexGrid } from "#/components/Hexagon/HexGrid";
 import type { AnswerProgress } from "#/durable-objects/answer";
+import type { Cluster } from "#/durable-objects/cluster";
 import { ServerMessage } from "#/durable-objects/messages";
 import type { Phase } from "#/durable-objects/phase";
 import type { Player } from "#/durable-objects/player";
 import { getStartDisabledReason } from "#/lib/lobby";
+import { clusterTier, sortClustersForReveal } from "#/lib/reveal";
 import { playerIdStorageKey, roomWsUrl } from "#/lib/room-client";
 
 import styles from "./room.$code.module.css";
@@ -32,6 +36,8 @@ function RoomPage() {
   const [answerInput, setAnswerInput] = useState("");
   const [hasSubmittedAnswer, setHasSubmittedAnswer] = useState(false);
   const [answerProgress, setAnswerProgress] = useState<AnswerProgress | null>(null);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [answersByPlayer, setAnswersByPlayer] = useState<Record<string, string>>({});
   const [announcement, setAnnouncement] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -89,6 +95,12 @@ function RoomPage() {
           setPhase(message.phase);
           setRound(message.round);
           setQuestion(message.question);
+          setClusters(message.clusters ?? []);
+          setAnswersByPlayer(
+            Object.fromEntries(
+              Object.entries(message.answers).map(([playerId, answer]) => [playerId, answer.text]),
+            ),
+          );
           const myAnswer = myPlayerIdRef.current
             ? message.answers[myPlayerIdRef.current]
             : undefined;
@@ -110,10 +122,18 @@ function RoomPage() {
           setAnswerInput("");
           setHasSubmittedAnswer(false);
           setAnswerProgress(null);
+          setClusters([]);
+          setAnswersByPlayer({});
           break;
         }
         case "answerProgress": {
           setAnswerProgress({ answered: message.answered, total: message.total });
+          break;
+        }
+        case "reveal": {
+          setPhase("reveal");
+          setClusters(message.clusters);
+          setAnswersByPlayer(message.answersByPlayer);
           break;
         }
         case "playerJoined": {
@@ -181,6 +201,8 @@ function RoomPage() {
 
   const isHost = myPlayerId !== null && myPlayerId === hostId;
   const startDisabledReason = getStartDisabledReason(players.length);
+  const sortedClusters = sortClustersForReveal(clusters);
+  const playerNameById = new Map(players.map((player) => [player.id, player.name]));
 
   return (
     <main className={styles.page}>
@@ -338,7 +360,38 @@ function RoomPage() {
         </section>
       )}
 
-      {uiState === "lobby" && phase !== "lobby" && phase !== "answering" && (
+      {uiState === "lobby" && phase === "reveal" && (
+        <section className={styles.revealSection} aria-label="Answer clusters">
+          <p className={styles.phaseHeading}>Round {round} — Reveal</p>
+          {question && <p className={styles.questionText}>{question.text}</p>}
+
+          <HexGrid columns={3}>
+            {sortedClusters.map((cluster) => (
+              <Hexagon key={cluster.id} state="honey" tier={clusterTier(cluster.playerIds.length)}>
+                <span className={styles.clusterLabel}>{cluster.canonical}</span>
+                <span className={styles.clusterCount}>{cluster.playerIds.length}</span>
+              </Hexagon>
+            ))}
+          </HexGrid>
+
+          <ul className={styles.clusterLegend} aria-label="Who matched with whom">
+            {sortedClusters.map((cluster) => (
+              <li key={cluster.id} className={styles.clusterLegendRow}>
+                <strong>{cluster.canonical}</strong> ({cluster.playerIds.length}):{" "}
+                {cluster.playerIds
+                  .map((playerId) => {
+                    const name = playerNameById.get(playerId) ?? "Unknown";
+                    const rawText = answersByPlayer[playerId];
+                    return rawText && rawText !== cluster.canonical ? `${name} (${rawText})` : name;
+                  })
+                  .join(", ")}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {uiState === "lobby" && phase !== "lobby" && phase !== "answering" && phase !== "reveal" && (
         <>
           <p className={styles.phaseHeading}>
             Round {round} — {phase} phase
