@@ -9,6 +9,7 @@ import type { Cluster } from "#/durable-objects/cluster";
 import { ServerMessage } from "#/durable-objects/messages";
 import type { Phase } from "#/durable-objects/phase";
 import type { Player } from "#/durable-objects/player";
+import { WIN_HONEY_TARGET } from "#/durable-objects/score";
 import { getStartDisabledReason } from "#/lib/lobby";
 import { clusterTier, sortClustersForReveal } from "#/lib/reveal";
 import { playerIdStorageKey, roomWsUrl } from "#/lib/room-client";
@@ -136,6 +137,10 @@ function RoomPage() {
           setAnswersByPlayer(message.answersByPlayer);
           break;
         }
+        case "scores": {
+          setPlayers(message.players);
+          break;
+        }
         case "playerJoined": {
           setAnnouncement(`${message.player.name} joined`);
           break;
@@ -182,6 +187,10 @@ function RoomPage() {
     socketRef.current?.send(JSON.stringify({ type: "start" }));
   };
 
+  const handleNextRound = () => {
+    socketRef.current?.send(JSON.stringify({ type: "nextRound" }));
+  };
+
   const handleSubmitAnswer = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = answerInput.trim();
@@ -203,6 +212,7 @@ function RoomPage() {
   const startDisabledReason = getStartDisabledReason(players.length);
   const sortedClusters = sortClustersForReveal(clusters);
   const playerNameById = new Map(players.map((player) => [player.id, player.name]));
+  const winners = players.filter((player) => player.honey >= WIN_HONEY_TARGET && !player.stung);
 
   return (
     <main className={styles.page}>
@@ -391,14 +401,87 @@ function RoomPage() {
         </section>
       )}
 
-      {uiState === "lobby" && phase !== "lobby" && phase !== "answering" && phase !== "reveal" && (
-        <>
-          <p className={styles.phaseHeading}>
-            Round {round} — {phase} phase
-          </p>
-          {question && <p className={styles.questionText}>{question.text}</p>}
-        </>
+      {uiState === "lobby" && phase === "scoring" && (
+        <section className={styles.revealSection} aria-label="Scores">
+          <p className={styles.phaseHeading}>Round {round} — Scores</p>
+
+          <ul className={styles.playerList} aria-label="Honey counts">
+            {players.map((player) => (
+              <li key={player.id} className={styles.playerRow}>
+                <span className={styles.playerName}>
+                  {player.name}
+                  {player.id === myPlayerId && " (You)"}
+                </span>
+                <span className={styles.honeyCount}>
+                  {player.honey} / {WIN_HONEY_TARGET} honey
+                </span>
+                {player.stung && (
+                  <span className={styles.stung}>
+                    <svg
+                      className={styles.stungIcon}
+                      viewBox="0 0 12 12"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path d="M6 1 L11 10 L1 10 Z" fill="currentColor" />
+                    </svg>
+                    Stung
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          {isHost ? (
+            <button type="button" className={styles.primaryButton} onClick={handleNextRound}>
+              Next round
+            </button>
+          ) : (
+            <p className={styles.waiting}>Waiting for the host to start the next round…</p>
+          )}
+        </section>
       )}
+
+      {uiState === "lobby" && phase === "gameover" && (
+        <section className={styles.revealSection} aria-label="Game over">
+          <p className={styles.phaseHeading}>Game over</p>
+          <p className={styles.questionText}>
+            {winners.length > 0
+              ? `${winners.map((winner) => winner.name).join(" and ")} won with ${WIN_HONEY_TARGET} honey!`
+              : "The game has ended."}
+          </p>
+
+          <ul className={styles.playerList} aria-label="Final honey counts">
+            {players.map((player) => (
+              <li key={player.id} className={styles.playerRow}>
+                <span className={styles.playerName}>
+                  {player.name}
+                  {player.id === myPlayerId && " (You)"}
+                </span>
+                <span className={styles.honeyCount}>{player.honey} honey</span>
+              </li>
+            ))}
+          </ul>
+
+          <Link to="/" className={styles.secondaryButton}>
+            Back to home
+          </Link>
+        </section>
+      )}
+
+      {uiState === "lobby" &&
+        phase !== "lobby" &&
+        phase !== "answering" &&
+        phase !== "reveal" &&
+        phase !== "scoring" &&
+        phase !== "gameover" && (
+          <>
+            <p className={styles.phaseHeading}>
+              Round {round} — {phase} phase
+            </p>
+            {question && <p className={styles.questionText}>{question.text}</p>}
+          </>
+        )}
     </main>
   );
 }

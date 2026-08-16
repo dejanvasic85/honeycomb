@@ -13,6 +13,7 @@ const JoinMessage = z.object({ type: z.literal("join"), name: PlayerName });
 const RejoinMessage = z.object({ type: z.literal("rejoin"), playerId: z.string() });
 const StartMessage = z.object({ type: z.literal("start") });
 const SubmitAnswerMessage = z.object({ type: z.literal("submitAnswer"), text: AnswerText });
+const NextRoundMessage = z.object({ type: z.literal("nextRound") });
 
 export const ClientMessage = z.discriminatedUnion("type", [
   PingMessage,
@@ -20,6 +21,7 @@ export const ClientMessage = z.discriminatedUnion("type", [
   RejoinMessage,
   StartMessage,
   SubmitAnswerMessage,
+  NextRoundMessage,
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -84,6 +86,16 @@ const RevealMessage = z.object({
   clusters: z.array(ClusterSchema),
   answersByPlayer: z.record(z.string(), z.string()),
 });
+// Sent once, on entering `scoring` or `gameover`. SPEC §4 names this payload
+// `{ players, stungPlayerId }` (singular) — deviating to `stungPlayerIds`
+// (plural) here because v0 exact-match clustering (#15) can easily produce
+// several singleton clusters in one round, and a singular field would
+// silently drop all but one stung player. See #17.
+const ScoresMessage = z.object({
+  type: z.literal("scores"),
+  players: z.array(PlayerSchema),
+  stungPlayerIds: z.array(z.string()),
+});
 const ErrorMessage = z.object({ type: z.literal("error"), code: z.string(), message: z.string() });
 
 // Not yet the full RoomState snapshot from docs/SPEC.md §3 (no scores yet) —
@@ -98,6 +110,7 @@ export const ServerMessage = z.discriminatedUnion("type", [
   QuestionMessage,
   AnswerProgressMessage,
   RevealMessage,
+  ScoresMessage,
   ErrorMessage,
 ]);
 export type ServerMessage = z.infer<typeof ServerMessage>;
@@ -153,6 +166,10 @@ export function buildRevealMessage(
   answersByPlayer: Record<string, string>,
 ): string {
   return JSON.stringify({ type: "reveal", clusters, answersByPlayer });
+}
+
+export function buildScoresMessage(players: Player[], stungPlayerIds: string[]): string {
+  return JSON.stringify({ type: "scores", players, stungPlayerIds });
 }
 
 export function buildErrorMessage(code: string, message: string): string {

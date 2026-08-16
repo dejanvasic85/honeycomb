@@ -250,3 +250,23 @@
   font-family: var(--font-body);
   font-size: var(--text-sm);
 }
+
+.honeyCount {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.stung {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--sting);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.stungIcon {
+  width: var(--space-3);
+  height: var(--space-3);
+}
