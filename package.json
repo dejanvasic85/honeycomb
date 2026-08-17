@@ -12,7 +12,7 @@
     "preview": "vp preview",
     "deploy": "pnpm build && wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "check": "vp check && node scripts/check-no-hex.ts",
+    "check": "vp check && node scripts/check-no-hex.ts && node scripts/check-contrast.ts",
     "test": "vp test",
     "cf-typegen": "wrangler types",
     "prepare": "vp config",

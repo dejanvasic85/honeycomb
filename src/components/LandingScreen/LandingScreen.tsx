@@ -47,22 +47,24 @@ export function LandingScreen({ initialJoinCode = "" }: LandingScreenProps) {
 
   return (
     <main className={styles.page}>
-      <HexGrid columns={3}>
-        <Hexagon state="honey" tier={1}>
-          1
-        </Hexagon>
-        <Hexagon state="honey" tier={2}>
-          2
-        </Hexagon>
-        <Hexagon state="honey" tier={3}>
-          3
-        </Hexagon>
-        <Hexagon state="honey" tier={4}>
-          4
-        </Hexagon>
-        <Hexagon state="empty" />
-        <Hexagon state="stung">Stung</Hexagon>
-      </HexGrid>
+      <div aria-hidden="true">
+        <HexGrid columns={3}>
+          <Hexagon state="honey" tier={1}>
+            1
+          </Hexagon>
+          <Hexagon state="honey" tier={2}>
+            2
+          </Hexagon>
+          <Hexagon state="honey" tier={3}>
+            3
+          </Hexagon>
+          <Hexagon state="honey" tier={4}>
+            4
+          </Hexagon>
+          <Hexagon state="empty" />
+          <Hexagon state="stung">Stung</Hexagon>
+        </HexGrid>
+      </div>
 
       <h1 className={styles.title}>Honeycomb</h1>
       <p className={styles.tagline}>Everyone answers the same question. Matching answers score.</p>

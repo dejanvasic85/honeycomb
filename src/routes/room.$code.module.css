@@ -126,7 +126,6 @@
 .playerRow[data-connected="false"] {
   color: var(--ink-muted);
   background: var(--paper);
-  opacity: 0.7;
 }
 
 .playerName {
