@@ -34,6 +34,13 @@ This creates the `questions` table and seeds 20 hand-written questions (§5 of
 `docs/SPEC.md`). Both migrations are idempotent — safe to re-run. Add `--remote` (once
 credentials exist) to apply against the real Cloudflare D1 database instead.
 
+### Growing the question bank
+
+`pnpm generate-questions --category food --age-band kids --count 15` prompts Claude for
+candidate questions and writes them to a gitignored review file — nothing reaches D1 until
+a human flips rows to `approved: true` and runs `pnpm apply-approved-questions`, which turns
+those rows into a new migration. See `review/README.md` for the full workflow.
+
 ## Bindings
 
 Declared in `wrangler.jsonc`: `ROOM_DO` (Durable Object, SQLite-backed storage) and `DB`
