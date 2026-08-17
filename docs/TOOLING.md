@@ -136,16 +136,16 @@ npm view vite-plus dependencies   # shows the exact vitest + vite-plus-core pins
 Checked live via `npm view <pkg> version` on 2026-08-04 — **re-check before
 scaffolding**, this moves fast:
 
-| Package                   | Version  | Notes                                                                            |
-| ------------------------- | -------- | -------------------------------------------------------------------------------- |
-| `@tanstack/react-start`   | 1.168.35 | Use this, not `@tanstack/start` (that package is stale, last published ~1yr ago) |
-| `@tanstack/react-router`  | 1.170.18 |                                                                                  |
-| `wrangler`                | 4.118.0  |                                                                                  |
-| `@cloudflare/vite-plugin` | 1.50.0   |                                                                                  |
-| `react` / `react-dom`     | 19.2.8   |                                                                                  |
-| `typescript`              | 7.0.2    |                                                                                  |
-| `zod`                     | 4.4.3    |                                                                                  |
-| `@anthropic-ai/sdk`       | 0.115.0  | for LLM clustering later, M4                                                     |
+| Package                   | Version  | Notes                                                                               |
+| ------------------------- | -------- | ----------------------------------------------------------------------------------- |
+| `@tanstack/react-start`   | 1.168.35 | Use this, not `@tanstack/start` (that package is stale, last published ~1yr ago)    |
+| `@tanstack/react-router`  | 1.170.18 |                                                                                     |
+| `wrangler`                | 4.118.0  |                                                                                     |
+| `@cloudflare/vite-plugin` | 1.50.0   |                                                                                     |
+| `react` / `react-dom`     | 19.2.8   |                                                                                     |
+| `typescript`              | 7.0.2    |                                                                                     |
+| `zod`                     | 4.4.3    |                                                                                     |
+| `@anthropic-ai/sdk`       | 0.117.1  | installed for #20's v1 LLM clustering; re-checked live via `npm view` on 2026-08-17 |
 
 `typescript` in this project is pinned to `^6.0.2` (resolves `6.0.3`), **not** the
 7.0.2 shown as latest above. `@voidzero-dev/vite-plus-core` pins `typescript@6.0.3`

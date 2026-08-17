@@ -9,6 +9,7 @@ import {
 } from "./answering-timer";
 import { clusterAnswers } from "./cluster";
 import { HOST_PROMOTION_DELAY_MS, pickPromotedHost } from "./host";
+import { createAnthropicClusterClient } from "./llm-cluster";
 import {
   ClientMessage,
   buildAnswerProgressMessage,
@@ -365,20 +366,28 @@ export class RoomDO extends DurableObject {
   }
 
   // Every connected player has answered — advance answering -> judging ->
-  // reveal in one step. v0 clustering (#15) is synchronous, so judging has
-  // no real work to do yet; the intermediate phase broadcast still fires so
-  // clients' phase handling is exercised the same way it will be once #20
-  // makes judging an actual async LLM call.
+  // reveal in one step. `judging` now does real work: a Claude Haiku call
+  // judging semantic equivalence (#20), falling back to v0 exact-match on
+  // any error, timeout, or malformed response.
   private async advanceToReveal(room: RoomRecord): Promise<void> {
     room.phase = "judging";
     room.answeringDeadlineAt = null;
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     this.broadcast(buildPhaseMessage(room.phase));
 
-    const clusters = clusterAnswers(room.answers);
-    room.clusters = clusters;
-    room.phase = "reveal";
-    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+    const llmClient = this.env.ANTHROPIC_API_KEY
+      ? createAnthropicClusterClient(this.env.ANTHROPIC_API_KEY)
+      : undefined;
+    const clusters = await clusterAnswers(room.answers, llmClient);
+
+    // The LLM call above can take seconds — re-read storage rather than
+    // reuse the pre-await `room` object, so a concurrent write elsewhere
+    // (e.g. webSocketClose marking a player disconnected) isn't clobbered.
+    const latest = (await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY)) ?? room;
+    latest.clusters = clusters;
+    latest.phase = "reveal";
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, latest);
+    room = latest;
 
     this.broadcast(buildPhaseMessage(room.phase));
     const answersByPlayer: Record<string, string> = {};

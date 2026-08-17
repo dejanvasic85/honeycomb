@@ -1,4 +1,6 @@
 import type { Answer } from "./answer";
+import { clusterAnswersWithLLM } from "./llm-cluster";
+import type { ClusterLLMClient } from "./llm-cluster";
 
 export interface Cluster {
   id: string;
@@ -17,10 +19,10 @@ function normalise(text: string): string {
 }
 
 // v0 clustering per docs/SPEC.md §6: exact match on the normalised text.
-// The LLM-backed v1 (#20) sits behind this same signature and falls back to
-// this on error/timeout, so the shape here — a plain function from answers to
-// clusters — is load-bearing, not incidental.
-export function clusterAnswers(answers: Record<string, Answer>): Cluster[] {
+// Deterministic and free, so it's both the baseline implementation and the
+// fallback clusterAnswers() reaches for whenever the v1 LLM path (#20) is
+// unavailable or untrustworthy.
+export function clusterAnswersExact(answers: Record<string, Answer>): Cluster[] {
   const ordered = Object.values(answers).sort((a, b) => a.submittedAt - b.submittedAt);
 
   const byNormalised = new Map<string, Cluster>();
@@ -39,4 +41,21 @@ export function clusterAnswers(answers: Record<string, Answer>): Cluster[] {
   }
 
   return Array.from(byNormalised.values());
+}
+
+// Public entrypoint per docs/SPEC.md §6: `clusterAnswers(answers): Promise<Cluster[]>`
+// behind an interface. Tries the LLM-backed v1 when a client is supplied,
+// falling back to the deterministic v0 exact-match on any error, timeout, or
+// malformed response — so a live round with kids on screen never stalls on a
+// bad LLM call.
+export async function clusterAnswers(
+  answers: Record<string, Answer>,
+  llmClient?: ClusterLLMClient,
+): Promise<Cluster[]> {
+  if (llmClient) {
+    const llmResult = await clusterAnswersWithLLM(answers, llmClient);
+    if (llmResult) return llmResult;
+  }
+
+  return clusterAnswersExact(answers);
 }
