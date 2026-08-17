@@ -45,6 +45,7 @@ const answeringRoom: RoomRecord = {
   answers: threeAnswers,
   clusters: null,
   answeringDeadlineAt: null,
+  emptiedAt: null,
 };
 
 describe("sanitiseFor", () => {

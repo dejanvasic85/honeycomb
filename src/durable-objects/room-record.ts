@@ -27,6 +27,9 @@ export interface RoomRecord {
   // Epoch ms the answering phase forcibly ends, set on entering `answering`
   // and cleared on leaving it. Drives the #18 alarm-based timeout.
   answeringDeadlineAt: number | null;
+  // Epoch ms the room last had zero connected players; null while anyone's
+  // connected. Drives real empty-room GC (#22) — see room-gc.ts.
+  emptiedAt: number | null;
 }
 
 export const ROOM_STORAGE_KEY = "room";

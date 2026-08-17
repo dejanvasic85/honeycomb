@@ -29,6 +29,7 @@ import { disambiguateName } from "./player";
 import type { Player } from "./player";
 import { pickQuestion } from "./question";
 import type { Question } from "./question";
+import { computeEmptiedAt, hasEmptyRoomExpired } from "./room-gc";
 import {
   CLEANUP_ALARM_DELAY_MS,
   EMPTY_ROOM_CLEANUP_DELAY_MS,
@@ -38,12 +39,10 @@ import {
 import type { RoomRecord } from "./room-record";
 import { sanitiseFor } from "./sanitise";
 import { applyStingAndOffload, awardHoney, checkWinners } from "./score";
+import { hasOtherConnection } from "./socket";
+import type { WebSocketAttachment } from "./socket";
 import { checkStart } from "./start";
 import { checkSubmitAnswer } from "./submit-answer";
-
-interface WebSocketAttachment {
-  playerId: string;
-}
 
 export class RoomDO extends DurableObject {
   // Number of times this class has been constructed for a given DO instance —
@@ -117,6 +116,7 @@ export class RoomDO extends DurableObject {
       answers: {},
       clusters: null,
       answeringDeadlineAt: null,
+      emptiedAt: null,
     };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     await this.scheduleAlarmNoLaterThan(Date.now() + CLEANUP_ALARM_DELAY_MS);
@@ -144,11 +144,21 @@ export class RoomDO extends DurableObject {
 
     const stillConnected = Object.values(room.players).some((player) => player.connected);
     if (stillConnected) {
-      // Cleanup policy TBD — see docs/SPEC.md §9. Re-arming now proves rooms
-      // don't live forever unmanaged; the actual GC decision (expire idle
-      // rooms? archive scores?) is deferred to #22.
       await this.scheduleAlarmNoLaterThan(Date.now() + CLEANUP_ALARM_DELAY_MS);
+      return;
     }
+
+    if (hasEmptyRoomExpired(room.emptiedAt, Date.now())) {
+      await this.ctx.storage.deleteAll();
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+
+    // Empty but not yet past the grace period — this alarm fired early for
+    // some other reason (e.g. the host-promotion recheck above shared the
+    // same slot). Re-arm for the actual GC deadline.
+    const expiresAt = (room.emptiedAt ?? Date.now()) + EMPTY_ROOM_CLEANUP_DELAY_MS;
+    await this.scheduleAlarmNoLaterThan(expiresAt);
   }
 
   // A DO has one alarm slot shared by the answering timer, host-promotion
@@ -225,6 +235,7 @@ export class RoomDO extends DurableObject {
 
     room.players[player.id] = player;
     if (!room.hostId) room.hostId = player.id;
+    room.emptiedAt = null;
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
     const attachment: WebSocketAttachment = { playerId: player.id };
@@ -245,6 +256,7 @@ export class RoomDO extends DurableObject {
 
     player.connected = true;
     player.connectedSince = Date.now();
+    room.emptiedAt = null;
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
 
     const attachment: WebSocketAttachment = { playerId: player.id };
@@ -467,33 +479,49 @@ export class RoomDO extends DurableObject {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
-    const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
-    if (attachment) {
-      const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
-      const player = room?.players[attachment.playerId];
-      if (room && player) {
-        player.connected = false;
-        await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
-        this.broadcast(buildPlayerLeftMessage(player));
-        if (room.phase === "answering") this.broadcastAnswerProgress(room);
-        this.broadcastState(room);
-
-        const stillConnected = Object.values(room.players).some((p) => p.connected);
-        if (!stillConnected) {
-          // Last player gone — schedule the room for cleanup sooner than the
-          // default horizon. Actual deletion policy is still #22's job.
-          await this.scheduleAlarmNoLaterThan(Date.now() + EMPTY_ROOM_CLEANUP_DELAY_MS);
-        } else if (player.id === room.hostId) {
-          await this.scheduleAlarmNoLaterThan(Date.now() + HOST_PROMOTION_DELAY_MS);
-        }
-      }
-    }
-
+    await this.handleDisconnect(ws);
     ws.close(code, reason);
   }
 
   async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     console.error("RoomDO websocket error", error);
+    // Hibernation doesn't guarantee webSocketClose fires after an error, so
+    // this path has to do the same disconnect bookkeeping itself — otherwise
+    // a socket error leaves a player stuck "connected", permanently blocking
+    // host promotion and empty-room GC.
+    await this.handleDisconnect(ws);
     ws.close(1011, "error");
+  }
+
+  private async handleDisconnect(ws: WebSocket): Promise<void> {
+    const attachment: WebSocketAttachment | null = ws.deserializeAttachment();
+    if (!attachment) return;
+
+    // A newer connection for this player is already live (e.g. this is a
+    // refreshed tab's stale socket finally closing) — ignore it rather than
+    // clobbering the live connection's state.
+    const otherAttachments = this.ctx
+      .getWebSockets()
+      .filter((socket) => socket !== ws)
+      .map((socket): WebSocketAttachment | null => socket.deserializeAttachment());
+    if (hasOtherConnection(otherAttachments, attachment.playerId)) return;
+
+    const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
+    const player = room?.players[attachment.playerId];
+    if (!room || !player) return;
+
+    player.connected = false;
+    const stillConnected = Object.values(room.players).some((p) => p.connected);
+    room.emptiedAt = computeEmptiedAt(room.emptiedAt, stillConnected, Date.now());
+    await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+    this.broadcast(buildPlayerLeftMessage(player));
+    if (room.phase === "answering") this.broadcastAnswerProgress(room);
+    this.broadcastState(room);
+
+    if (!stillConnected) {
+      await this.scheduleAlarmNoLaterThan(Date.now() + EMPTY_ROOM_CLEANUP_DELAY_MS);
+    } else if (player.id === room.hostId) {
+      await this.scheduleAlarmNoLaterThan(Date.now() + HOST_PROMOTION_DELAY_MS);
+    }
   }
 }
