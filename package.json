@@ -15,7 +15,9 @@
     "check": "vp check && node scripts/check-no-hex.ts",
     "test": "vp test",
     "cf-typegen": "wrangler types",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "generate-questions": "node --env-file=.dev.vars scripts/generate-questions.ts",
+    "apply-approved-questions": "node scripts/apply-approved-questions.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.117.1",
