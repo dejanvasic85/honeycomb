@@ -44,6 +44,7 @@ const answeringRoom: RoomRecord = {
   usedQuestionIds: ["q1"],
   answers: threeAnswers,
   clusters: null,
+  answeringDeadlineAt: null,
 };
 
 describe("sanitiseFor", () => {

@@ -24,6 +24,9 @@ export interface RoomRecord {
   // Set once clusterAnswers() runs on entering `judging`; null before then
   // and at the start of every new round.
   clusters: Cluster[] | null;
+  // Epoch ms the answering phase forcibly ends, set on entering `answering`
+  // and cleared on leaving it. Drives the #18 alarm-based timeout.
+  answeringDeadlineAt: number | null;
 }
 
 export const ROOM_STORAGE_KEY = "room";

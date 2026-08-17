@@ -2,6 +2,11 @@ import { DurableObject } from "cloudflare:workers";
 
 import { computeAnswerProgress } from "./answer";
 import type { Answer } from "./answer";
+import {
+  ANSWERING_PHASE_DURATION_MS,
+  earliestAlarmAt,
+  hasAnsweringTimedOut,
+} from "./answering-timer";
 import { clusterAnswers } from "./cluster";
 import { HOST_PROMOTION_DELAY_MS, pickPromotedHost } from "./host";
 import {
@@ -110,9 +115,10 @@ export class RoomDO extends DurableObject {
       usedQuestionIds: [],
       answers: {},
       clusters: null,
+      answeringDeadlineAt: null,
     };
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
-    await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
+    await this.scheduleAlarmNoLaterThan(Date.now() + CLEANUP_ALARM_DELAY_MS);
 
     return Response.json(room, { status: 201 });
   }
@@ -120,6 +126,10 @@ export class RoomDO extends DurableObject {
   async alarm(): Promise<void> {
     const room = await this.ctx.storage.get<RoomRecord>(ROOM_STORAGE_KEY);
     if (!room) return;
+
+    if (hasAnsweringTimedOut(room.phase, room.answeringDeadlineAt, Date.now())) {
+      await this.advanceToReveal(room);
+    }
 
     const host = room.hostId ? room.players[room.hostId] : undefined;
     if (host && !host.connected) {
@@ -136,8 +146,16 @@ export class RoomDO extends DurableObject {
       // Cleanup policy TBD — see docs/SPEC.md §9. Re-arming now proves rooms
       // don't live forever unmanaged; the actual GC decision (expire idle
       // rooms? archive scores?) is deferred to #22.
-      await this.ctx.storage.setAlarm(Date.now() + CLEANUP_ALARM_DELAY_MS);
+      await this.scheduleAlarmNoLaterThan(Date.now() + CLEANUP_ALARM_DELAY_MS);
     }
+  }
+
+  // A DO has one alarm slot shared by the answering timer, host-promotion
+  // recheck, and room cleanup — only ever move it earlier, never later, so
+  // one concern's schedule call can't clobber another's sooner deadline.
+  private async scheduleAlarmNoLaterThan(at: number): Promise<void> {
+    const current = await this.ctx.storage.getAlarm();
+    await this.ctx.storage.setAlarm(earliestAlarmAt(current, at));
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -303,9 +321,11 @@ export class RoomDO extends DurableObject {
     }
 
     room.phase = "answering";
+    room.answeringDeadlineAt = Date.now() + ANSWERING_PHASE_DURATION_MS;
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
+    await this.scheduleAlarmNoLaterThan(room.answeringDeadlineAt);
 
-    this.broadcast(buildPhaseMessage(room.phase));
+    this.broadcast(buildPhaseMessage(room.phase, room.answeringDeadlineAt));
     this.broadcastAnswerProgress(room);
     this.broadcastState(room);
   }
@@ -351,6 +371,7 @@ export class RoomDO extends DurableObject {
   // makes judging an actual async LLM call.
   private async advanceToReveal(room: RoomRecord): Promise<void> {
     room.phase = "judging";
+    room.answeringDeadlineAt = null;
     await this.ctx.storage.put(ROOM_STORAGE_KEY, room);
     this.broadcast(buildPhaseMessage(room.phase));
 
@@ -452,9 +473,9 @@ export class RoomDO extends DurableObject {
         if (!stillConnected) {
           // Last player gone — schedule the room for cleanup sooner than the
           // default horizon. Actual deletion policy is still #22's job.
-          await this.ctx.storage.setAlarm(Date.now() + EMPTY_ROOM_CLEANUP_DELAY_MS);
+          await this.scheduleAlarmNoLaterThan(Date.now() + EMPTY_ROOM_CLEANUP_DELAY_MS);
         } else if (player.id === room.hostId) {
-          await this.ctx.storage.setAlarm(Date.now() + HOST_PROMOTION_DELAY_MS);
+          await this.scheduleAlarmNoLaterThan(Date.now() + HOST_PROMOTION_DELAY_MS);
         }
       }
     }
