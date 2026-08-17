@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { Answer } from "./answer";
-import { clusterAnswers } from "./cluster";
+import { clusterAnswers, clusterAnswersExact } from "./cluster";
+import type { ClusterLLMClient } from "./llm-cluster";
 
 function makeAnswer(overrides: Partial<Answer> & Pick<Answer, "playerId">): Answer {
   return { text: `${overrides.playerId}'s answer`, submittedAt: 0, ...overrides };
 }
 
-describe("clusterAnswers", () => {
+describe("clusterAnswersExact", () => {
   it("returns an empty array for no answers", () => {
-    expect(clusterAnswers({})).toEqual([]);
+    expect(clusterAnswersExact({})).toEqual([]);
   });
 
   it("groups answers that are identical after normalisation", () => {
@@ -19,7 +20,7 @@ describe("clusterAnswers", () => {
       p3: makeAnswer({ playerId: "p3", text: "PIZZA!", submittedAt: 3 }),
     };
 
-    const clusters = clusterAnswers(answers);
+    const clusters = clusterAnswersExact(answers);
 
     expect(clusters).toHaveLength(1);
     expect(clusters[0].playerIds).toEqual(["p1", "p2", "p3"]);
@@ -31,7 +32,7 @@ describe("clusterAnswers", () => {
       p2: makeAnswer({ playerId: "p2", text: "mac   and cheese.", submittedAt: 2 }),
     };
 
-    expect(clusterAnswers(answers)).toHaveLength(1);
+    expect(clusterAnswersExact(answers)).toHaveLength(1);
   });
 
   it("keeps distinct answers in separate singleton clusters", () => {
@@ -40,7 +41,7 @@ describe("clusterAnswers", () => {
       p2: makeAnswer({ playerId: "p2", text: "Tacos", submittedAt: 2 }),
     };
 
-    const clusters = clusterAnswers(answers);
+    const clusters = clusterAnswersExact(answers);
 
     expect(clusters).toHaveLength(2);
     expect(clusters.map((c) => c.playerIds)).toEqual([["p1"], ["p2"]]);
@@ -52,7 +53,7 @@ describe("clusterAnswers", () => {
       p2: makeAnswer({ playerId: "p2", text: "McDonald's", submittedAt: 1 }),
     };
 
-    const clusters = clusterAnswers(answers);
+    const clusters = clusterAnswersExact(answers);
 
     expect(clusters).toHaveLength(1);
     expect(clusters[0].canonical).toBe("McDonald's");
@@ -65,9 +66,55 @@ describe("clusterAnswers", () => {
       p3: makeAnswer({ playerId: "p3", text: "dogs", submittedAt: 3 }),
     };
 
-    const clusters = clusterAnswers(answers);
+    const clusters = clusterAnswersExact(answers);
     const allPlayerIds = clusters.flatMap((c) => c.playerIds).sort();
 
     expect(allPlayerIds).toEqual(["p1", "p2", "p3"]);
+  });
+});
+
+function fakeClient(complete: ClusterLLMClient["complete"]): ClusterLLMClient {
+  return { complete };
+}
+
+describe("clusterAnswers", () => {
+  const answers: Record<string, Answer> = {
+    p1: makeAnswer({ playerId: "p1", text: "McDonald's", submittedAt: 1 }),
+    p2: makeAnswer({ playerId: "p2", text: "Maccas", submittedAt: 2 }),
+  };
+
+  it("falls back to v0 exact-match when no LLM client is supplied", async () => {
+    const clusters = await clusterAnswers(answers);
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("uses the LLM result when the client returns a valid clustering", async () => {
+    const client = fakeClient(async () =>
+      JSON.stringify({ clusters: [{ canonical: "McDonald's", playerIds: ["p1", "p2"] }] }),
+    );
+
+    const clusters = await clusterAnswers(answers, client);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].playerIds).toEqual(["p1", "p2"]);
+  });
+
+  it("falls back to v0 when the LLM client throws", async () => {
+    const client = fakeClient(async () => {
+      throw new Error("network error");
+    });
+
+    const clusters = await clusterAnswers(answers, client);
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("falls back to v0 when the LLM response is malformed", async () => {
+    const client = fakeClient(async () => "not json");
+
+    const clusters = await clusterAnswers(answers, client);
+
+    expect(clusters).toHaveLength(2);
   });
 });
