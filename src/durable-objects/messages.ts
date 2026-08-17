@@ -67,7 +67,14 @@ const StateMessage = z.object({
   answers: z.record(z.string(), AnswerSchema),
   clusters: z.array(ClusterSchema).nullable(),
 });
-const PhaseMessage = z.object({ type: z.literal("phase"), phase: PhaseSchema });
+// `endsAt` (SPEC §4) is only populated for the `answering` transition today —
+// the deadline the #18 alarm will force the phase along at. No client
+// countdown UI consumes it yet.
+const PhaseMessage = z.object({
+  type: z.literal("phase"),
+  phase: PhaseSchema,
+  endsAt: z.number().optional(),
+});
 const QuestionMessage = z.object({
   type: z.literal("question"),
   text: z.string(),
@@ -149,8 +156,8 @@ export function buildStateMessage(room: SanitisedRoom): string {
   });
 }
 
-export function buildPhaseMessage(phase: Phase): string {
-  return JSON.stringify({ type: "phase", phase });
+export function buildPhaseMessage(phase: Phase, endsAt?: number): string {
+  return JSON.stringify({ type: "phase", phase, endsAt });
 }
 
 export function buildQuestionMessage(text: string, category: string): string {

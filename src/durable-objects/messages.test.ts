@@ -210,6 +210,12 @@ describe("buildPhaseMessage", () => {
       JSON.stringify({ type: "phase", phase: "question" }),
     );
   });
+
+  it("serialises endsAt when provided", () => {
+    expect(buildPhaseMessage("answering", 1234)).toBe(
+      JSON.stringify({ type: "phase", phase: "answering", endsAt: 1234 }),
+    );
+  });
 });
 
 describe("buildQuestionMessage", () => {
