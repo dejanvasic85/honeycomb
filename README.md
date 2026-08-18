@@ -43,9 +43,11 @@ those rows into a new migration. See `review/README.md` for the full workflow.
 
 ## Bindings
 
-Declared in `wrangler.jsonc`: `ROOM_DO` (Durable Object, SQLite-backed storage) and `DB`
-(D1 database named `honeycomb`). Run `pnpm cf-typegen` after changing bindings to regenerate
-`worker-configuration.d.ts` (committed, gives `Env` its types).
+Declared in `wrangler.jsonc`: `ROOM_DO` (Durable Object, SQLite-backed storage), `DB`
+(D1 database named `honeycomb`), and `ROOM_CREATE_LIMITER` (Workers Rate Limiting API,
+10 room creations per 60s per client IP — see `POST /api/room` in `src/server.ts`). Run
+`pnpm cf-typegen` after changing bindings to regenerate `worker-configuration.d.ts`
+(committed, gives `Env` its types).
 
 ## Typecheck
 
