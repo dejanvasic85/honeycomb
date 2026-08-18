@@ -26,6 +26,11 @@ export function LandingScreen({ initialJoinCode = "" }: LandingScreenProps) {
     setCreateError(null);
     try {
       const response = await fetch("/api/room", { method: "POST" });
+      if (response.status === 429) {
+        setCreateError("Too many rooms created. Wait a minute and try again.");
+        setCreating(false);
+        return;
+      }
       const parsed = CreateRoomResponse.safeParse(await response.json());
       if (!response.ok || !parsed.success) {
         setCreateError("Couldn't create a room. Try again.");

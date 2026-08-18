@@ -244,6 +244,28 @@ that module works in any server-side module, framework-agnostic).
 Durable Object migrations should use `new_sqlite_classes` (SQLite-backed storage), not the
 older `new_classes` — SQLite-backed is the current default/required path for new DOs.
 
+### Workers Rate Limiting API binding (added for #24)
+
+Native binding, no npm package — declared directly in `wrangler.jsonc`:
+
+```jsonc
+"ratelimits": [
+  { "name": "ROOM_CREATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+],
+```
+
+`namespace_id` is an arbitrary string unique within the account (not a resource you
+create beforehand). `simple.period` must be `10` or `60` seconds — no other values
+accepted. Usage: `const { success } = await env.ROOM_CREATE_LIMITER.limit({ key })`.
+Requires `wrangler` >= 4.36.0 (this project has 4.118.0). Confirmed working against
+the local dev simulator (`pnpm dev` + `wrangler.jsonc`'s binding) — no Cloudflare
+credentials needed to test it. Docs:
+https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+
+Docs note it's "permissive, eventually consistent" and counters are local to the
+Cloudflare location the Worker runs in — fine for abuse deterrence, not for exact
+accounting.
+
 ---
 
 ## How #1 was actually scaffolded (2026-08-05)

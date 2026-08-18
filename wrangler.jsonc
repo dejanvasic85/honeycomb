@@ -15,4 +15,11 @@
       "database_id": "d946ff57-5d44-4790-859d-53162f5c2fd5",
     },
   ],
+  "ratelimits": [
+    {
+      "name": "ROOM_CREATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
 }

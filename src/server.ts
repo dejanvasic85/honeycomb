@@ -2,6 +2,7 @@ import handler from "@tanstack/react-start/server-entry";
 import { env } from "cloudflare:workers";
 
 import { createRoomWithRetries } from "#/durable-objects/create-room";
+import { clientIpFromRequest } from "#/durable-objects/rate-limit";
 import { normaliseRoomCode } from "#/durable-objects/room-code";
 
 export { RoomDO } from "#/durable-objects/room-do";
@@ -28,6 +29,11 @@ export default {
 };
 
 async function createRoom(request: Request): Promise<Response> {
+  const { success } = await env.ROOM_CREATE_LIMITER.limit({ key: clientIpFromRequest(request) });
+  if (!success) {
+    return Response.json({ error: "rate_limited" }, { status: 429 });
+  }
+
   try {
     const code = await createRoomWithRetries(async (candidate) => {
       const id = env.ROOM_DO.idFromName(candidate);
